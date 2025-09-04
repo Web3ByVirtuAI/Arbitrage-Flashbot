@@ -542,6 +542,111 @@ export class APIServer {
       }
     });
 
+    // Enhanced Infura Gas API endpoints
+    this.app.get('/api/infura-gas/:network?', async (req, res) => {
+      try {
+        const network = req.params.network || 'mainnet';
+        
+        if (this.isDemoMode) {
+          res.json({
+            network,
+            source: 'Demo Infura Gas API',
+            suggestions: {
+              low: { suggestedMaxFeePerGas: '15.2', minWaitTimeEstimate: 180000 },
+              medium: { suggestedMaxFeePerGas: '18.5', minWaitTimeEstimate: 60000 },
+              high: { suggestedMaxFeePerGas: '22.1', minWaitTimeEstimate: 30000 }
+            },
+            enhancedRecommendations: {
+              slow: 15200000000,
+              standard: 18500000000,
+              fast: 22100000000,
+              mevProtected: 26520000000,
+              priority: 1850000000
+            },
+            networkCongestion: 45,
+            mode: 'demo'
+          });
+        } else if (this.apiService?.metaMaskService) {
+          const gasData = await this.apiService.metaMaskService.getInfuraGasRecommendations(network);
+          res.json({ ...gasData, mode: 'live' });
+        } else {
+          res.status(503).json({ error: 'Infura Gas API service not available' });
+        }
+      } catch (error) {
+        logger.error('Error getting Infura Gas API data:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
+    this.app.get('/api/comprehensive-gas/:network?', async (req, res) => {
+      try {
+        const network = req.params.network || 'mainnet';
+        
+        if (this.isDemoMode) {
+          res.json({
+            network,
+            sources: {
+              infuraGasApi: { available: true, confidence: 'high' },
+              basicRpc: { available: true, confidence: 'medium' }
+            },
+            recommendations: {
+              slow: 15200000000,
+              standard: 18500000000,
+              fast: 22100000000,
+              mevProtected: 26520000000,
+              priority: 1850000000
+            },
+            confirmationTimes: {
+              slow: '3 minutes',
+              standard: '1 minute', 
+              fast: '30 seconds'
+            },
+            networkCongestion: 45,
+            confidence: 'high',
+            mode: 'demo'
+          });
+        } else if (this.apiService?.metaMaskService) {
+          const analysis = await this.apiService.metaMaskService.getComprehensiveGasAnalysis(network);
+          res.json({ ...analysis, mode: 'live' });
+        } else {
+          res.status(503).json({ error: 'Comprehensive gas analysis not available' });
+        }
+      } catch (error) {
+        logger.error('Error getting comprehensive gas analysis:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
+    this.app.get('/api/arbitrage-optimal-gas/:network?', async (req, res) => {
+      try {
+        const network = req.params.network || 'mainnet';
+        
+        if (this.isDemoMode) {
+          res.json({
+            network,
+            arbitrageOptimal: {
+              gasPrice: 26520000000,
+              maxFeePerGas: 26520000000,
+              maxPriorityFeePerGas: 2652000000,
+              estimatedConfirmationTime: '30 seconds'
+            },
+            networkCongestion: 45,
+            confidence: 'high',
+            sources: ['infuraGasApi', 'basicRpc'],
+            mode: 'demo'
+          });
+        } else if (this.apiService?.metaMaskService) {
+          const optimal = await this.apiService.metaMaskService.getArbitrageOptimalGas(network);
+          res.json({ ...optimal, mode: 'live' });
+        } else {
+          res.status(503).json({ error: 'Arbitrage gas optimization not available' });
+        }
+      } catch (error) {
+        logger.error('Error getting arbitrage optimal gas:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
     // Serve static files with cache control for development
     this.app.use(express.static('public', {
       setHeaders: (res, path, stat) => {

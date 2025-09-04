@@ -9,6 +9,7 @@ import { logger } from '../utils/logger';
 export class MetaMaskService {
   private infuraProjectId: string;
   private infuraApiSecret: string;
+  private gasApiUrl: string;
   private providers: Map<string, ethers.JsonRpcProvider> = new Map();
   private cache: Map<string, { data: any, timestamp: number }> = new Map();
   private cacheTimeout = 15000; // 15 seconds for gas data
@@ -44,6 +45,7 @@ export class MetaMaskService {
   constructor() {
     this.infuraProjectId = process.env.INFURA_PROJECT_ID || '';
     this.infuraApiSecret = process.env.INFURA_API_KEY_SECRET || '';
+    this.gasApiUrl = `https://gas.api.infura.io/v3/${this.infuraProjectId}`;
     
     if (!this.infuraProjectId) {
       logger.warn('Infura Project ID not configured - MetaMask features limited');
@@ -51,6 +53,7 @@ export class MetaMaskService {
     }
 
     logger.info('✅ Infura/MetaMask service initialized with project ID:', this.infuraProjectId.substring(0, 8) + '...');
+    logger.info('🔥 Infura Gas API endpoint configured:', `https://gas.api.infura.io/v3/${this.infuraProjectId.substring(0, 8)}...`);
     if (this.infuraApiSecret) {
       logger.info('✅ Infura API secret configured for enhanced security');
     }
@@ -77,7 +80,64 @@ export class MetaMaskService {
   }
 
   /**
-   * Get optimized gas prices across all networks
+   * Get advanced gas recommendations using Infura Gas API
+   */
+  async getInfuraGasRecommendations(network: string = 'mainnet'): Promise<any> {
+    if (!this.infuraProjectId) return null;
+    
+    const cacheKey = `infura_gas_${network}`;
+    const cached = this.getCached(cacheKey);
+    if (cached) return cached;
+
+    try {
+      const headers: any = {
+        'Content-Type': 'application/json'
+      };
+
+      // Add API secret for enhanced features
+      if (this.infuraApiSecret) {
+        headers['Authorization'] = `Basic ${Buffer.from(`:${this.infuraApiSecret}`).toString('base64')}`;
+      }
+
+      const response = await axios.get(`${this.gasApiUrl}/networks/${network === 'mainnet' ? '1' : network}/suggestedGasFees`, {
+        headers,
+        timeout: 8000
+      });
+
+      const gasData = {
+        network,
+        source: 'Infura Gas API',
+        suggestions: response.data,
+        enhancedRecommendations: {
+          // Convert to wei for consistency
+          slow: Math.floor(parseFloat(response.data.low.suggestedMaxFeePerGas) * 1e9),
+          standard: Math.floor(parseFloat(response.data.medium.suggestedMaxFeePerGas) * 1e9), 
+          fast: Math.floor(parseFloat(response.data.high.suggestedMaxFeePerGas) * 1e9),
+          priority: Math.floor(parseFloat(response.data.medium.suggestedMaxPriorityFeePerGas) * 1e9),
+          // MEV protection with 20% buffer
+          mevProtected: Math.floor(parseFloat(response.data.high.suggestedMaxFeePerGas) * 1.2 * 1e9)
+        },
+        estimatedConfirmationTimes: {
+          slow: response.data.low.minWaitTimeEstimate,
+          standard: response.data.medium.minWaitTimeEstimate,
+          fast: response.data.high.minWaitTimeEstimate
+        },
+        networkCongestion: response.data.networkCongestion || 0,
+        timestamp: Date.now()
+      };
+
+      this.setCache(cacheKey, gasData);
+      logger.info(`🔥 Infura Gas API: ${network} network congestion: ${gasData.networkCongestion}%`);
+      return gasData;
+      
+    } catch (error) {
+      logger.error(`Infura Gas API error for ${network}:`, (error as Error).message);
+      return null;
+    }
+  }
+
+  /**
+   * Get optimized gas prices across all networks (Enhanced with Infura Gas API)
    */
   async getGasOptimization(): Promise<Map<string, any>> {
     const gasData = new Map();
@@ -111,14 +171,34 @@ export class MetaMaskService {
           timestamp: Date.now()
         };
 
-        // Calculate gas recommendations
-        const baseGas = BigInt(gasInfo.gasPrice);
-        (gasInfo as any).recommendations = {
-          slow: (baseGas * BigInt(80) / BigInt(100)).toString(),    // 80% of base
-          standard: gasInfo.gasPrice,                                // Base price
-          fast: (baseGas * BigInt(120) / BigInt(100)).toString(),   // 120% of base
-          fastest: (baseGas * BigInt(150) / BigInt(100)).toString() // 150% of base
-        };
+        // Try to get enhanced Infura Gas API recommendations first
+        const infuraGasData = await this.getInfuraGasRecommendations(network);
+        
+        if (infuraGasData) {
+          // Use Infura Gas API recommendations when available
+          (gasInfo as any).infuraGasApi = infuraGasData;
+          (gasInfo as any).recommendations = {
+            slow: infuraGasData.enhancedRecommendations.slow.toString(),
+            standard: infuraGasData.enhancedRecommendations.standard.toString(),
+            fast: infuraGasData.enhancedRecommendations.fast.toString(),
+            mevProtected: infuraGasData.enhancedRecommendations.mevProtected.toString(),
+            priority: infuraGasData.enhancedRecommendations.priority.toString()
+          };
+          (gasInfo as any).confirmationTimes = infuraGasData.estimatedConfirmationTimes;
+          (gasInfo as any).networkCongestion = infuraGasData.networkCongestion;
+          (gasInfo as any).gasSource = 'Infura Gas API';
+        } else {
+          // Fallback to basic calculations
+          const baseGas = BigInt(gasInfo.gasPrice);
+          (gasInfo as any).recommendations = {
+            slow: (baseGas * BigInt(80) / BigInt(100)).toString(),    // 80% of base
+            standard: gasInfo.gasPrice,                                // Base price
+            fast: (baseGas * BigInt(120) / BigInt(100)).toString(),   // 120% of base
+            mevProtected: (baseGas * BigInt(150) / BigInt(100)).toString(), // 150% of base
+            priority: (baseGas * BigInt(10) / BigInt(100)).toString() // 10% priority
+          };
+          (gasInfo as any).gasSource = 'Basic RPC';
+        }
 
         this.setCache(cacheKey, gasInfo);
         gasData.set(network, gasInfo);
@@ -386,7 +466,75 @@ export class MetaMaskService {
   }
 
   /**
-   * Get MEV-protected gas recommendations
+   * Get comprehensive gas analysis using all available sources
+   */
+  async getComprehensiveGasAnalysis(network: string = 'mainnet'): Promise<any> {
+    const cacheKey = `comprehensive_gas_${network}`;
+    const cached = this.getCached(cacheKey);
+    if (cached) return cached;
+
+    try {
+      // Get data from multiple sources
+      const [infuraGasData, basicGasData] = await Promise.all([
+        this.getInfuraGasRecommendations(network),
+        this.getMEVProtectedGasPrice(network)
+      ]);
+
+      const analysis = {
+        network,
+        sources: {
+          infuraGasApi: infuraGasData,
+          basicRpc: basicGasData
+        },
+        recommendations: {}
+      };
+
+      if (infuraGasData && basicGasData) {
+        // Combine recommendations for best accuracy
+        (analysis as any).recommendations = {
+          // Use Infura's advanced calculations
+          slow: infuraGasData.enhancedRecommendations.slow,
+          standard: Math.max(
+            infuraGasData.enhancedRecommendations.standard,
+            basicGasData.recommendations.standard
+          ),
+          fast: Math.max(
+            infuraGasData.enhancedRecommendations.fast,
+            basicGasData.recommendations.fast
+          ),
+          mevProtected: Math.max(
+            infuraGasData.enhancedRecommendations.mevProtected,
+            basicGasData.recommendations.mevProtected
+          ),
+          priority: infuraGasData.enhancedRecommendations.priority
+        };
+        (analysis as any).confirmationTimes = infuraGasData.estimatedConfirmationTimes;
+        (analysis as any).networkCongestion = infuraGasData.networkCongestion;
+        (analysis as any).confidence = 'high'; // Multiple sources
+      } else if (infuraGasData) {
+        (analysis as any).recommendations = infuraGasData.enhancedRecommendations;
+        (analysis as any).confirmationTimes = infuraGasData.estimatedConfirmationTimes;
+        (analysis as any).networkCongestion = infuraGasData.networkCongestion;
+        (analysis as any).confidence = 'medium'; // Infura only
+      } else if (basicGasData) {
+        (analysis as any).recommendations = basicGasData.recommendations;
+        (analysis as any).confidence = 'low'; // Basic RPC only
+      } else {
+        return null;
+      }
+
+      (analysis as any).timestamp = Date.now();
+      this.setCache(cacheKey, analysis);
+      return analysis;
+      
+    } catch (error) {
+      logger.error(`Comprehensive gas analysis failed for ${network}:`, (error as Error).message);
+      return null;
+    }
+  }
+
+  /**
+   * Get MEV-protected gas recommendations (Enhanced with Infura Gas API)
    */
   async getMEVProtectedGasPrice(network: string = 'mainnet'): Promise<any> {
     const cacheKey = `mev_gas_${network}`;
@@ -394,7 +542,10 @@ export class MetaMaskService {
     if (cached) return cached;
 
     try {
-      // Use Infura's MEV protection features
+      // Try to get Infura Gas API data first for more accurate MEV protection
+      const infuraGasData = await this.getInfuraGasRecommendations(network);
+      
+      // Use Infura's MEV protection features as fallback/verification
       const [gasPrice, feeHistory, blockNumber] = await Promise.all([
         this.makeInfuraAPICall(network, 'eth_gasPrice'),
         this.makeInfuraAPICall(network, 'eth_feeHistory', ['0x4', 'latest', [10, 25, 50, 75, 90]]),
@@ -407,17 +558,35 @@ export class MetaMaskService {
         gasPrice: parseInt(gasPrice, 16),
         feeHistory,
         mevProtected: true,
-        recommendations: {
-          slow: Math.floor(parseInt(gasPrice, 16) * 0.85),
-          standard: parseInt(gasPrice, 16),
-          fast: Math.floor(parseInt(gasPrice, 16) * 1.15),
-          mevProtected: Math.floor(parseInt(gasPrice, 16) * 1.25)
-        },
+        source: infuraGasData ? 'Infura Gas API + RPC' : 'Basic RPC',
+        recommendations: {},
         timestamp: Date.now()
       };
 
+      if (infuraGasData) {
+        // Use enhanced Infura Gas API recommendations
+        gasData.recommendations = {
+          slow: infuraGasData.enhancedRecommendations.slow,
+          standard: infuraGasData.enhancedRecommendations.standard,
+          fast: infuraGasData.enhancedRecommendations.fast,
+          mevProtected: infuraGasData.enhancedRecommendations.mevProtected,
+          priority: infuraGasData.enhancedRecommendations.priority
+        };
+        (gasData as any).networkCongestion = infuraGasData.networkCongestion;
+        (gasData as any).confirmationTimes = infuraGasData.estimatedConfirmationTimes;
+      } else {
+        // Fallback to basic calculations
+        gasData.recommendations = {
+          slow: Math.floor(parseInt(gasPrice, 16) * 0.85),
+          standard: parseInt(gasPrice, 16),
+          fast: Math.floor(parseInt(gasPrice, 16) * 1.15),
+          mevProtected: Math.floor(parseInt(gasPrice, 16) * 1.25),
+          priority: Math.floor(parseInt(gasPrice, 16) * 0.1)
+        };
+      }
+
       this.setCache(cacheKey, gasData);
-      logger.info(`Got MEV-protected gas data for ${network}: ${gasData.gasPrice} wei`);
+      logger.info(`Got MEV-protected gas data for ${network} (${gasData.source}): ${gasData.gasPrice} wei`);
       return gasData;
     } catch (error) {
       logger.error(`MEV gas estimation failed for ${network}:`, (error as Error).message);
@@ -426,22 +595,66 @@ export class MetaMaskService {
   }
 
   /**
-   * Simulate transaction with MEV protection
+   * Get optimal gas price for flash loan arbitrage
+   */
+  async getArbitrageOptimalGas(network: string = 'mainnet'): Promise<any> {
+    try {
+      const comprehensiveData = await this.getComprehensiveGasAnalysis(network);
+      
+      if (!comprehensiveData) {
+        return { error: 'Unable to get gas recommendations' };
+      }
+
+      const recommendations = comprehensiveData.recommendations;
+      
+      // For arbitrage, we need fast execution with MEV protection
+      const optimalGasPrice = Math.max(
+        recommendations.fast || 0,
+        recommendations.mevProtected || 0
+      );
+
+      return {
+        network,
+        arbitrageOptimal: {
+          gasPrice: optimalGasPrice,
+          maxFeePerGas: optimalGasPrice,
+          maxPriorityFeePerGas: recommendations.priority || Math.floor(optimalGasPrice * 0.1),
+          estimatedConfirmationTime: comprehensiveData.confirmationTimes?.fast || '30 seconds'
+        },
+        networkCongestion: comprehensiveData.networkCongestion || 0,
+        confidence: comprehensiveData.confidence,
+        sources: Object.keys(comprehensiveData.sources).filter(s => comprehensiveData.sources[s]),
+        timestamp: Date.now()
+      };
+      
+    } catch (error) {
+      logger.error(`Arbitrage gas optimization failed for ${network}:`, (error as Error).message);
+      return { error: (error as Error).message };
+    }
+  }
+
+  /**
+   * Simulate transaction with MEV protection (Enhanced with Infura Gas API)
    */
   async simulateMEVProtectedTransaction(txData: any, network: string = 'mainnet'): Promise<any> {
     try {
       // First simulate the transaction
       const simulationResult = await this.makeInfuraAPICall(network, 'eth_estimateGas', [txData]);
       
-      // Get MEV-protected gas pricing
-      const gasData = await this.getMEVProtectedGasPrice(network);
+      // Get comprehensive gas analysis including Infura Gas API
+      const gasData = await this.getComprehensiveGasAnalysis(network);
       
       return {
         success: true,
         gasEstimate: parseInt(simulationResult, 16),
         mevProtectedGasPrice: gasData?.recommendations.mevProtected,
         standardGasPrice: gasData?.recommendations.standard,
-        maxFeePerGas: gasData?.feeHistory?.baseFeePerGas?.[0],
+        fastGasPrice: gasData?.recommendations.fast,
+        priorityFee: gasData?.recommendations.priority,
+        networkCongestion: gasData?.networkCongestion,
+        estimatedConfirmationTime: gasData?.confirmationTimes?.fast,
+        confidence: gasData?.confidence,
+        sources: gasData?.sources ? Object.keys(gasData.sources).filter(s => gasData.sources[s]) : [],
         network,
         timestamp: Date.now()
       };
