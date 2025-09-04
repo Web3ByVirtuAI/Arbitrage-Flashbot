@@ -1,245 +1,353 @@
 #!/bin/bash
 
-# Interactive Production Setup Script
-# This script guides you through the complete production setup process
+# =====================================================
+# FLASH LOAN ARBITRAGE BOT - PRODUCTION SETUP SCRIPT
+# =====================================================
 
-set -e
+set -e  # Exit on any error
+
+echo "🚀 Flash Loan Arbitrage Bot - Production Setup"
+echo "=============================================="
 
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-PURPLE='\033[0;35m'
+NC='\033[0m' # No Color
+
+# Helper functions
+log_info() {
+    echo -e "${BLUE}ℹ️  $1${NC}"
+}
+
+log_success() {
+    echo -e "${GREEN}✅ $1${NC}"
+}
+
+log_warning() {
+    echo -e "${YELLOW}⚠️  $1${NC}"
+}
+
+log_error() {
+    echo -e "${RED}❌ $1${NC}"
+}
+
+# Check if running as root
+if [[ $EUID -eq 0 ]]; then
+   log_error "This script should not be run as root for security reasons"
+   exit 1
+fi
+
+# Create necessary directories
+log_info "Creating necessary directories..."
+mkdir -p logs
+mkdir -p backups
+mkdir -p config
+chmod 755 logs backups config
+
+# Set up environment file
+log_info "Setting up environment configuration..."
+if [ ! -f .env ]; then
+    cp .env.production.example .env
+    chmod 600 .env  # Restrict permissions
+    log_warning "Created .env file from template. Please edit it with your actual values!"
+    log_warning "File location: $(pwd)/.env"
+    log_warning "Remember to:"
+    log_warning "1. Add your private key and wallet address"
+    log_warning "2. Add your RPC URLs (Alchemy/Infura)"
+    log_warning "3. Configure notification settings"
+    log_warning "4. Review trading parameters"
+else
+    log_success ".env file already exists"
+fi
+
+# Validate Node.js version
+log_info "Checking Node.js version..."
+NODE_VERSION=$(node --version | cut -c2-)
+REQUIRED_VERSION="18.0.0"
+
+if [ "$(printf '%s\n' "$REQUIRED_VERSION" "$NODE_VERSION" | sort -V | head -n1)" = "$REQUIRED_VERSION" ]; then 
+    log_success "Node.js version $NODE_VERSION is compatible"
+else
+    log_error "Node.js version $NODE_VERSION is too old. Required: $REQUIRED_VERSION or higher"
+    exit 1
+fi
+
+# Install dependencies
+log_info "Installing production dependencies..."
+npm ci --only=production
+log_success "Dependencies installed"
+
+# Build the project
+log_info "Building TypeScript project..."
+npm run build
+log_success "Project built successfully"
+
+# Set up PM2 ecosystem
+log_info "Configuring PM2 ecosystem..."
+cat > ecosystem.config.production.cjs << 'EOF'
+module.exports = {
+  apps: [
+    {
+      name: 'flashbot-main',
+      script: 'dist/index.js',
+      instances: 1,
+      exec_mode: 'fork',
+      env: {
+        NODE_ENV: 'production',
+        PORT: 3000
+      },
+      log_file: './logs/flashbot-combined.log',
+      out_file: './logs/flashbot-out.log',
+      error_file: './logs/flashbot-error.log',
+      time: true,
+      max_memory_restart: '1G',
+      restart_delay: 4000,
+      max_restarts: 10,
+      min_uptime: '10s'
+    },
+    {
+      name: 'flashbot-opportunity-scanner',
+      script: 'dist/scripts/opportunity-scanner.js',
+      instances: 1,
+      exec_mode: 'fork',
+      env: {
+        NODE_ENV: 'production'
+      },
+      log_file: './logs/scanner-combined.log',
+      out_file: './logs/scanner-out.log',
+      error_file: './logs/scanner-error.log',
+      time: true,
+      max_memory_restart: '512M',
+      restart_delay: 2000,
+      max_restarts: 5
+    }
+  ]
+}
+EOF
+log_success "PM2 ecosystem configuration created"
+
+# Set up log rotation
+log_info "Setting up log rotation..."
+cat > config/logrotate.conf << 'EOF'
+logs/*.log {
+    daily
+    rotate 30
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}
+EOF
+log_success "Log rotation configured"
+
+# Create startup script
+log_info "Creating startup script..."
+cat > start-production.sh << 'EOF'
+#!/bin/bash
+
+echo "🚀 Starting Flash Loan Arbitrage Bot in Production Mode"
+
+# Load environment variables
+if [ ! -f .env ]; then
+    echo "❌ Error: .env file not found!"
+    echo "Please copy .env.production.example to .env and configure it"
+    exit 1
+fi
+
+# Source the environment
+set -a
+source .env
+set +a
+
+# Validate critical environment variables
+if [ -z "$PRIVATE_KEY" ] || [ "$PRIVATE_KEY" = "0xYOUR_64_CHARACTER_PRIVATE_KEY_HERE" ]; then
+    echo "❌ Error: PRIVATE_KEY not configured in .env file"
+    exit 1
+fi
+
+if [ -z "$RPC_URL_MAINNET" ] || [[ "$RPC_URL_MAINNET" == *"YOUR_"* ]]; then
+    echo "❌ Error: RPC_URL_MAINNET not configured in .env file"
+    exit 1
+fi
+
+# Build if needed
+if [ ! -d "dist" ]; then
+    echo "📦 Building project..."
+    npm run build
+fi
+
+# Start with PM2
+echo "🔄 Starting services with PM2..."
+pm2 start ecosystem.config.production.cjs
+
+echo "✅ Flash Loan Arbitrage Bot started successfully!"
+echo ""
+echo "📊 Monitoring commands:"
+echo "  pm2 status           - View process status"
+echo "  pm2 logs             - View logs"
+echo "  pm2 monit            - Real-time monitoring"
+echo ""
+echo "🛑 Stop commands:"
+echo "  pm2 stop all         - Stop all processes"
+echo "  pm2 restart all      - Restart all processes"
+echo ""
+echo "📱 Web interface: http://localhost:3000"
+EOF
+
+chmod +x start-production.sh
+log_success "Startup script created: ./start-production.sh"
+
+# Create stop script
+cat > stop-production.sh << 'EOF'
+#!/bin/bash
+
+echo "🛑 Stopping Flash Loan Arbitrage Bot..."
+
+pm2 stop flashbot-main flashbot-opportunity-scanner 2>/dev/null || true
+pm2 delete flashbot-main flashbot-opportunity-scanner 2>/dev/null || true
+
+echo "✅ Flash Loan Arbitrage Bot stopped successfully!"
+EOF
+
+chmod +x stop-production.sh
+log_success "Stop script created: ./stop-production.sh"
+
+# Create monitoring script
+log_info "Creating monitoring script..."
+cat > scripts/monitor.sh << 'EOF'
+#!/bin/bash
+
+# Colors
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
 NC='\033[0m'
 
-log_info() { echo -e "${BLUE}ℹ️  $1${NC}"; }
-log_success() { echo -e "${GREEN}✅ $1${NC}"; }
-log_warning() { echo -e "${YELLOW}⚠️  $1${NC}"; }
-log_error() { echo -e "${RED}❌ $1${NC}"; }
-log_step() { echo -e "${PURPLE}🔧 $1${NC}"; }
+echo "📊 Flash Loan Arbitrage Bot - System Monitor"
+echo "=========================================="
 
-echo "🚀 Flash Loan Arbitrage Bot - Production Setup Wizard"
-echo "====================================================="
-echo ""
+# Check if processes are running
+echo -e "\n🔍 Process Status:"
+pm2 jlist 2>/dev/null | grep -q "flashbot" && echo -e "${GREEN}✅ Bot processes are running${NC}" || echo -e "${RED}❌ Bot processes are not running${NC}"
 
-# Step 1: Welcome & Warnings
-echo "⚠️  CRITICAL WARNINGS:"
-echo "- This bot trades with REAL cryptocurrency"
-echo "- You can lose ALL your invested funds"
-echo "- Only invest what you can afford to lose completely"
-echo "- DeFi protocols have inherent smart contract risks"
-echo "- Gas fees can eliminate profits during network congestion"
-echo ""
-
-read -p "Do you understand these risks and wish to continue? (yes/no): " confirm
-if [[ $confirm != "yes" ]]; then
-    log_error "Setup cancelled for safety"
-    exit 1
-fi
-
-# Step 2: Generate or Import Wallet
-echo ""
-log_step "Step 1: Wallet Setup"
-echo "===================="
-
-if [[ -f ".env" ]]; then
-    log_info "Existing .env file found"
-    read -p "Do you want to generate a new wallet? (yes/no): " new_wallet
+# Check API endpoint
+echo -e "\n🌐 API Health Check:"
+if curl -s http://localhost:3000/health > /dev/null; then
+    echo -e "${GREEN}✅ API endpoint is responding${NC}"
 else
-    new_wallet="yes"
+    echo -e "${RED}❌ API endpoint is not responding${NC}"
 fi
 
-if [[ $new_wallet == "yes" ]]; then
-    log_info "Generating new trading wallet..."
-    node scripts/generate-wallet.js
-    
-    echo ""
-    log_warning "IMPORTANT: Your wallet has been generated above"
-    log_warning "Write down the mnemonic phrase and store it safely!"
-    echo ""
-    
-    read -p "Press Enter after you've safely stored your wallet information..."
-fi
-
-# Step 3: API Keys Setup
-echo ""
-log_step "Step 2: API Keys Setup"
-echo "======================"
-
-if [[ ! -f ".env" && ! -f ".env.production" ]]; then
-    log_error "No environment file found. Please run wallet generation first."
-    exit 1
-fi
-
-# Copy production template if needed
-if [[ -f ".env.production" && ! -f ".env" ]]; then
-    cp .env.production .env
-    log_success "Copied .env.production to .env"
-fi
-
-echo "You need to configure the following API keys in your .env file:"
-echo ""
-echo "1. 🔗 Alchemy API Key (Primary RPC)"
-echo "   - Sign up at: https://alchemy.com"
-echo "   - Create new app → Ethereum Mainnet"
-echo "   - Copy API key and replace YOUR_ALCHEMY_API_KEY in .env"
-echo ""
-echo "2. 🔗 Infura API Key (Backup RPC)"
-echo "   - Sign up at: https://infura.io"
-echo "   - Create new project → Ethereum"  
-echo "   - Copy Project ID and replace YOUR_INFURA_PROJECT_ID in .env"
-echo ""
-echo "3. 📊 Etherscan API Key (Optional)"
-echo "   - Sign up at: https://etherscan.io"
-echo "   - Create API key and replace your_etherscan_api_key in .env"
-echo ""
-
-read -p "Have you updated your .env file with API keys? (yes/no): " api_keys_done
-if [[ $api_keys_done != "yes" ]]; then
-    log_warning "Please update .env file with your API keys and run this script again"
-    echo "Edit file: nano .env"
-    exit 1
-fi
-
-# Step 4: Test Configuration
-echo ""
-log_step "Step 3: Configuration Testing"
-echo "============================="
-
-log_info "Testing your configuration..."
-if ! node scripts/test-config.js; then
-    log_error "Configuration tests failed. Please fix the issues above."
-    exit 1
-fi
-
-log_success "Configuration tests passed!"
-
-# Step 5: Wallet Funding
-echo ""
-log_step "Step 4: Wallet Funding"
-echo "======================"
-
-# Get wallet address from .env
-WALLET_ADDRESS=$(grep "WALLET_ADDRESS" .env | cut -d '=' -f2)
-
-echo "Your trading wallet address: $WALLET_ADDRESS"
-echo ""
-echo "💰 FUNDING RECOMMENDATIONS:"
-echo "- Testing: 0.1 ETH (~\$250)"
-echo "- Small scale: 0.5-1 ETH (\$1,250-\$2,500)"
-echo "- Production: 2-5 ETH (\$5,000-\$12,500)"
-echo ""
-echo "⚠️  Remember:"
-echo "- Keep 30% for gas fees (trading uses gas for each transaction)"
-echo "- Start small and scale up gradually"
-echo "- You can always add more funds later"
-echo ""
-
-read -p "Have you funded your wallet with ETH? (yes/no): " wallet_funded
-if [[ $wallet_funded != "yes" ]]; then
-    log_warning "Please fund your wallet before proceeding"
-    echo "Send ETH to: $WALLET_ADDRESS"
-    exit 1
-fi
-
-# Re-test configuration to verify balance
-log_info "Re-testing configuration with funded wallet..."
-if ! node scripts/test-config.js; then
-    log_error "Configuration tests failed after funding. Please check your wallet balance."
-    exit 1
-fi
-
-# Step 6: Risk Settings Review
-echo ""
-log_step "Step 5: Risk Management Review"
-echo "=============================="
-
-log_info "Current risk settings in .env:"
-echo ""
-
-# Show current risk settings
-grep -E "(MIN_PROFIT_THRESHOLD|MAX_TRADE_SIZE_ETH|MAX_DAILY_TRADES|STOP_LOSS_PERCENT)" .env | while read line; do
-    echo "  $line"
-done
-
-echo ""
-echo "🎯 RECOMMENDED STARTING SETTINGS:"
-echo "  MIN_PROFIT_THRESHOLD=0.02     # 2% minimum profit"
-echo "  MAX_TRADE_SIZE_ETH=0.1        # 0.1 ETH per trade maximum"
-echo "  MAX_DAILY_TRADES=20           # 20 trades per day maximum"
-echo "  STOP_LOSS_PERCENT=5           # Stop if 5% daily loss"
-echo ""
-
-read -p "Are you satisfied with your risk settings? (yes/no): " risk_ok
-if [[ $risk_ok != "yes" ]]; then
-    echo "Please edit your .env file to adjust risk settings:"
-    echo "nano .env"
-    read -p "Press Enter after adjusting settings..."
-fi
-
-# Step 7: Deploy to Production
-echo ""
-log_step "Step 6: Production Deployment"
-echo "============================="
-
-log_info "Ready to deploy to production!"
-echo ""
-echo "This will:"
-echo "- Build the application"
-echo "- Start it with PM2"
-echo "- Set up monitoring"
-echo "- Create emergency stop scripts"
-echo ""
-
-read -p "Proceed with production deployment? (yes/no): " deploy_now
-if [[ $deploy_now == "yes" ]]; then
-    log_info "Starting deployment..."
-    ./scripts/deploy-production.sh
+# Check log files
+echo -e "\n📋 Recent Log Activity:"
+if [ -f logs/flashbot-out.log ]; then
+    echo -e "${YELLOW}Last 3 log entries:${NC}"
+    tail -3 logs/flashbot-out.log
 else
-    log_info "Deployment cancelled. You can deploy later with:"
-    echo "./scripts/deploy-production.sh"
-    exit 0
+    echo -e "${RED}❌ Log file not found${NC}"
 fi
 
-# Step 8: Final Instructions
-echo ""
-log_step "Step 7: Final Setup Complete!"
-echo "============================="
+# Check disk space
+echo -e "\n💾 Disk Usage:"
+df -h . | tail -1 | awk '{print $4" available ("$5" used)"}'
 
-log_success "Production setup completed successfully!"
+# Check memory usage
+echo -e "\n🧠 Memory Usage:"
+pm2 show flashbot-main 2>/dev/null | grep -E "memory usage|cpu usage" || echo "Process not running"
+
+echo -e "\n📈 Quick Stats:"
+if curl -s http://localhost:3000/api/stats > /dev/null; then
+    curl -s http://localhost:3000/api/stats | head -5
+else
+    echo "API not available"
+fi
+EOF
+
+chmod +x scripts/monitor.sh
+log_success "Monitoring script created: ./scripts/monitor.sh"
+
+# Create backup script
+log_info "Creating backup script..."
+cat > scripts/backup.sh << 'EOF'
+#!/bin/bash
+
+BACKUP_DIR="backups"
+DATE=$(date +"%Y%m%d_%H%M%S")
+BACKUP_FILE="flashbot_backup_$DATE.tar.gz"
+
+echo "📦 Creating backup: $BACKUP_FILE"
+
+tar -czf "$BACKUP_DIR/$BACKUP_FILE" \
+    --exclude='node_modules' \
+    --exclude='dist' \
+    --exclude='logs/*.log' \
+    --exclude='.git' \
+    .
+
+echo "✅ Backup created: $BACKUP_DIR/$BACKUP_FILE"
+
+# Keep only last 10 backups
+cd $BACKUP_DIR
+ls -t flashbot_backup_*.tar.gz | tail -n +11 | xargs -r rm --
+cd ..
+
+echo "🧹 Old backups cleaned up"
+EOF
+
+chmod +x scripts/backup.sh
+log_success "Backup script created: ./scripts/backup.sh"
+
+# Security check
+log_info "Running security checks..."
+
+# Check file permissions
+if [ -f .env ]; then
+    PERM=$(stat -c "%a" .env)
+    if [ "$PERM" != "600" ]; then
+        chmod 600 .env
+        log_warning "Fixed .env file permissions (set to 600)"
+    else
+        log_success ".env file has correct permissions"
+    fi
+fi
+
+# Create systemd service (optional)
+log_info "Creating systemd service file (optional)..."
+cat > flashbot.service << 'EOF'
+[Unit]
+Description=Flash Loan Arbitrage Bot
+After=network.target
+
+[Service]
+Type=forking
+User=ubuntu
+WorkingDirectory=/home/ubuntu/flashbot
+ExecStart=/home/ubuntu/flashbot/start-production.sh
+ExecStop=/home/ubuntu/flashbot/stop-production.sh
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+log_info "To enable systemd service (optional):"
+log_info "  sudo cp flashbot.service /etc/systemd/system/"
+log_info "  sudo systemctl enable flashbot"
+log_info "  sudo systemctl start flashbot"
 
 echo ""
-echo "🎯 IMMEDIATE NEXT STEPS:"
-echo "1. 📊 Monitor the bot: ./scripts/monitor.sh"
-echo "2. 🌐 Access web interface: http://localhost:3000"
-echo "3. 📝 Check logs: pm2 logs flash-loan-bot-prod"
+log_success "🎉 Production setup completed!"
 echo ""
-
-echo "⚠️  BEFORE STARTING TRADING:"
-echo "1. Monitor in demo mode for 24 hours first"
-echo "2. Verify opportunities are being detected"
-echo "3. Check that gas estimates are reasonable"
-echo "4. Ensure profit calculations include gas costs"
+log_warning "⚠️  IMPORTANT NEXT STEPS:"
+echo "1. Edit .env file with your actual configuration"
+echo "2. Fund your trading wallet with ETH"
+echo "3. Test in demo mode first: DEMO_MODE=true in .env"
+echo "4. Start the bot: ./start-production.sh"
+echo "5. Monitor: ./scripts/monitor.sh"
 echo ""
-
-echo "🚀 WHEN READY TO START TRADING:"
-echo "curl -X POST http://localhost:3000/api/start"
-echo ""
-
-echo "🛑 EMERGENCY STOP (if needed):"
-echo "./scripts/emergency-stop.sh"
-echo ""
-
-echo "📈 MONITORING COMMANDS:"
-echo "- Overall status: ./scripts/monitor.sh"
-echo "- PM2 dashboard: pm2 monit"
-echo "- Recent logs: pm2 logs flash-loan-bot-prod --lines 50"
-echo "- Restart bot: pm2 restart flash-loan-bot-prod"
-echo ""
-
-log_warning "REMEMBER: Start with small amounts and monitor closely!"
-log_success "Your Flash Loan Arbitrage Bot is ready for production!"
-
-echo ""
-echo "Happy Trading! 🎉"
+log_info "📚 Documentation: Check README.md for detailed setup instructions"
+log_info "🔗 Monitoring: http://localhost:3000 (web interface)"

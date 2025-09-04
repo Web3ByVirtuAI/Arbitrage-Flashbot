@@ -296,11 +296,32 @@ export class APIServer {
       }
     });
 
-    // Serve static files (if any)
-    this.app.use(express.static('public'));
+    // Serve static files with cache control for development
+    this.app.use(express.static('public', {
+      setHeaders: (res, path, stat) => {
+        // Prevent caching in development
+        if (process.env.NODE_ENV !== 'production') {
+          res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+          res.set('Pragma', 'no-cache');
+          res.set('Expires', '0');
+          res.set('Surrogate-Control', 'no-store');
+        }
+      }
+    }));
 
-    // Default route
+    // Default route - serve the HTML interface
     this.app.get('/', (req, res) => {
+      // Prevent caching for index.html
+      if (process.env.NODE_ENV !== 'production') {
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.set('Pragma', 'no-cache');
+        res.set('Expires', '0');
+      }
+      res.sendFile('index.html', { root: './public' });
+    });
+
+    // API info route
+    this.app.get('/api', (req, res) => {
       res.json({
         name: 'Flash Loan Arbitrage Bot API',
         version: '1.0.0',

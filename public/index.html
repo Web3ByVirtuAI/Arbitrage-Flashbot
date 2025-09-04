@@ -4,345 +4,787 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Flash Loan Arbitrage Bot</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <!-- Cache Buster: 2025-09-04-12:53 -->
     <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
+        }
+        
+        /* Background Effects */
+        .bg-effect {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(100px);
+            opacity: 0.1;
+            pointer-events: none;
+            z-index: 0;
+        }
+        
+        .bg-effect-1 {
+            top: 0;
+            left: 0;
+            width: 300px;
+            height: 300px;
+            background: #3b82f6;
+        }
+        
+        .bg-effect-2 {
+            bottom: 0;
+            right: 0;
+            width: 400px;
+            height: 400px;
+            background: #8b5cf6;
+        }
+        
+        .bg-effect-3 {
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 250px;
+            height: 250px;
+            background: #10b981;
+        }
+        
+        /* Header */
+        header {
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid #374151;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+            position: relative;
+            z-index: 10;
+        }
+        
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1.5rem 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .logo-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+        }
+        
+        .logo-text h1 {
+            font-size: 2rem;
+            font-weight: bold;
+            background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            color: transparent;
+        }
+        
+        .logo-text p {
+            color: #94a3b8;
+            font-size: 0.875rem;
+        }
+        
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: #1e293b;
+            border: 1px solid #475569;
+            border-radius: 25px;
+            font-size: 0.875rem;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #eab308;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        /* Main Content */
+        .main-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem 1rem;
+            position: relative;
+            z-index: 10;
+        }
+        
+        /* Control Panel */
+        .control-panel {
+            background: rgba(30, 41, 59, 0.6);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            border: 1px solid #374151;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+        
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+        
+        .panel-title {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+        
+        .panel-icon {
+            width: 40px;
+            height: 40px;
+            background: rgba(59, 130, 246, 0.2);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #60a5fa;
+        }
+        
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+            color: #94a3b8;
+        }
+        
+        .connection-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #10b981;
+            animation: pulse 2s infinite;
+        }
+        
+        /* Button Grid */
+        .button-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+        
+        .control-btn {
+            padding: 1rem 1.5rem;
+            border: none;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .control-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+        }
+        
+        .control-btn:active {
+            transform: translateY(0);
+        }
+        
+        .btn-start {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+        
+        .btn-pause {
+            background: linear-gradient(135deg, #eab308 0%, #d97706 100%);
+            color: white;
+        }
+        
+        .btn-stop {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+        }
+        
+        .btn-refresh {
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            color: white;
+        }
+        
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .stat-card {
+            background: rgba(30, 41, 59, 0.6);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            border: 1px solid #374151;
+            padding: 2rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+        
+        .stat-card:hover {
+            border-color: #10b981;
+            transform: translateY(-5px);
+        }
+        
+        .stat-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .stat-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .stat-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+        }
+        
+        .stat-icon-profit {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+        }
+        
+        .stat-icon-trades {
+            background: rgba(59, 130, 246, 0.2);
+            color: #3b82f6;
+        }
+        
+        .stat-icon-success {
+            background: rgba(139, 92, 246, 0.2);
+            color: #8b5cf6;
+        }
+        
+        .stat-icon-uptime {
+            background: rgba(234, 179, 8, 0.2);
+            color: #eab308;
+        }
+        
+        .stat-text h3 {
+            font-size: 0.875rem;
+            color: #94a3b8;
+            margin-bottom: 0.25rem;
+        }
+        
+        .stat-text p {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        
+        .stat-text .profit {
+            color: #10b981;
+        }
+        
+        .stat-change {
+            font-size: 0.75rem;
+            color: #94a3b8;
+        }
+        
+        /* Opportunities Table */
+        .opportunities-section {
+            background: rgba(30, 41, 59, 0.6);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            border: 1px solid #374151;
+            padding: 2rem;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+        
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+        
+        .section-title {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+        
+        .opportunities-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .opportunities-table th {
+            text-align: left;
+            padding: 1rem;
+            font-weight: 600;
+            color: #94a3b8;
+            border-bottom: 1px solid #374151;
+        }
+        
+        .opportunities-table td {
+            padding: 1rem;
+            border-bottom: 1px solid #374151;
+        }
+        
+        .opportunities-table tr:hover {
+            background: rgba(59, 130, 246, 0.1);
+        }
+        
+        .profit-positive {
+            color: #10b981;
+            font-weight: 600;
+        }
+        
+        .profit-percentage {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+            padding: 0.25rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+        }
+        
+        /* Loading Animation */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Alert */
+        .alert {
+            padding: 1rem;
+            border-radius: 12px;
+            border-left: 4px solid #3b82f6;
+            background: rgba(59, 130, 246, 0.1);
+            margin-bottom: 1.5rem;
+            display: none;
+        }
+        
+        .alert.success {
+            border-left-color: #10b981;
+            background: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+        }
+        
+        .alert.error {
+            border-left-color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
+            .button-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .logo-text h1 {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
 </head>
-<body class="bg-gray-900 text-white">
-    <div class="min-h-screen">
-        <!-- Header -->
-        <header class="bg-gray-800 shadow-lg">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div class="flex justify-between items-center py-6">
-                    <h1 class="text-3xl font-bold text-blue-400">
-                        <i class="fas fa-bolt mr-2"></i>
-                        Flash Loan Arbitrage Bot
-                        <span id="demo-badge" class="ml-3 text-sm bg-yellow-500 text-black px-2 py-1 rounded-full font-medium">DEMO MODE</span>
-                    </h1>
-                    <div id="status-indicator" class="flex items-center space-x-2">
-                        <div class="h-3 w-3 bg-yellow-500 rounded-full animate-pulse"></div>
-                        <span class="text-sm">Monitoring Mode</span>
-                    </div>
+<body>
+    <!-- Background Effects -->
+    <div class="bg-effect bg-effect-1"></div>
+    <div class="bg-effect bg-effect-2"></div>
+    <div class="bg-effect bg-effect-3"></div>
+
+    <!-- Header -->
+    <header>
+        <div class="header-content">
+            <div class="logo-section">
+                <div class="logo-icon">⚡</div>
+                <div class="logo-text">
+                    <h1>Flash Loan Arbitrage Bot</h1>
+                    <p>Advanced DeFi Trading Engine</p>
                 </div>
             </div>
-        </header>
-
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <!-- Control Panel -->
-            <div class="bg-gray-800 rounded-lg shadow-xl p-6 mb-8">
-                <h2 class="text-xl font-semibold mb-4 text-blue-300">
-                    <i class="fas fa-cog mr-2"></i>
-                    Control Panel
-                </h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <button id="start-btn" onclick="startTrading()" 
-                            class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg font-medium transition-colors">
-                        <i class="fas fa-play mr-2"></i>Start Trading
-                    </button>
-                    <button id="pause-btn" onclick="pauseTrading()" 
-                            class="bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded-lg font-medium transition-colors">
-                        <i class="fas fa-pause mr-2"></i>Pause Trading
-                    </button>
-                    <button id="stop-btn" onclick="stopTrading()" 
-                            class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg font-medium transition-colors">
-                        <i class="fas fa-stop mr-2"></i>Stop Trading
-                    </button>
-                    <button onclick="refreshData()" 
-                            class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-medium transition-colors">
-                        <i class="fas fa-sync mr-2"></i>Refresh
-                    </button>
+            <div class="header-controls">
+                <div class="status-indicator">
+                    <div class="status-dot"></div>
+                    <span id="status-text">Initializing...</span>
                 </div>
             </div>
+        </div>
+    </header>
 
-            <!-- Stats Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                <div class="bg-gray-800 rounded-lg p-6">
-                    <div class="flex items-center">
-                        <div class="p-2 bg-green-500 rounded-lg">
-                            <i class="fas fa-chart-line text-white"></i>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm text-gray-400">Total Profit</p>
-                            <p id="total-profit" class="text-xl font-semibold text-green-400">$0.00</p>
-                        </div>
-                    </div>
+    <div class="main-content">
+        <!-- Alert -->
+        <div id="alert" class="alert">
+            <div id="alert-message"></div>
+        </div>
+
+        <!-- Control Panel -->
+        <div class="control-panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <div class="panel-icon">🎛️</div>
+                    <span>Trading Controls</span>
                 </div>
-
-                <div class="bg-gray-800 rounded-lg p-6">
-                    <div class="flex items-center">
-                        <div class="p-2 bg-blue-500 rounded-lg">
-                            <i class="fas fa-exchange-alt text-white"></i>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm text-gray-400">Total Trades</p>
-                            <p id="total-trades" class="text-xl font-semibold">0</p>
-                        </div>
-                    </div>
+                <div class="connection-status">
+                    <div class="connection-dot"></div>
+                    <span>Connected</span>
                 </div>
+            </div>
+            
+            <div class="button-grid">
+                <button class="control-btn btn-start" onclick="startTrading()">
+                    <span>▶️</span>
+                    <span>Start Trading</span>
+                </button>
+                
+                <button class="control-btn btn-pause" onclick="pauseTrading()">
+                    <span>⏸️</span>
+                    <span>Pause Trading</span>
+                </button>
+                
+                <button class="control-btn btn-stop" onclick="stopTrading()">
+                    <span>⏹️</span>
+                    <span>Stop Trading</span>
+                </button>
+                
+                <button class="control-btn btn-refresh" onclick="refreshData()">
+                    <span id="refresh-icon">🔄</span>
+                    <span>Refresh</span>
+                </button>
+            </div>
+        </div>
 
-                <div class="bg-gray-800 rounded-lg p-6">
-                    <div class="flex items-center">
-                        <div class="p-2 bg-purple-500 rounded-lg">
-                            <i class="fas fa-percentage text-white"></i>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm text-gray-400">Success Rate</p>
-                            <p id="success-rate" class="text-xl font-semibold">0%</p>
+        <!-- Stats Grid -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-content">
+                    <div class="stat-info">
+                        <div class="stat-icon stat-icon-profit">📈</div>
+                        <div class="stat-text">
+                            <h3>Total Profit</h3>
+                            <p class="profit" id="total-profit">$0.00</p>
                         </div>
                     </div>
-                </div>
-
-                <div class="bg-gray-800 rounded-lg p-6">
-                    <div class="flex items-center">
-                        <div class="p-2 bg-orange-500 rounded-lg">
-                            <i class="fas fa-search text-white"></i>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm text-gray-400">Opportunities</p>
-                            <p id="opportunities-count" class="text-xl font-semibold">0</p>
-                        </div>
-                    </div>
+                    <div class="stat-change" id="profit-change">+0.00%</div>
                 </div>
             </div>
 
-            <!-- Opportunities Table -->
-            <div class="bg-gray-800 rounded-lg shadow-xl p-6 mb-8">
-                <h2 class="text-xl font-semibold mb-4 text-blue-300">
-                    <i class="fas fa-bullseye mr-2"></i>
-                    Current Opportunities
-                </h2>
-                <div class="overflow-x-auto">
-                    <table class="w-full table-auto">
-                        <thead>
-                            <tr class="text-gray-400 border-b border-gray-700">
-                                <th class="text-left py-3 px-4">Token Pair</th>
-                                <th class="text-left py-3 px-4">DEX A → DEX B</th>
-                                <th class="text-left py-3 px-4">Profit %</th>
-                                <th class="text-left py-3 px-4">Expected Profit</th>
-                                <th class="text-left py-3 px-4">Age</th>
-                            </tr>
-                        </thead>
-                        <tbody id="opportunities-table" class="text-gray-300">
-                            <tr>
-                                <td colspan="5" class="text-center py-8 text-gray-500">
-                                    <i class="fas fa-spinner fa-spin mr-2"></i>
-                                    Scanning for opportunities...
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+            <div class="stat-card">
+                <div class="stat-content">
+                    <div class="stat-info">
+                        <div class="stat-icon stat-icon-trades">🔄</div>
+                        <div class="stat-text">
+                            <h3>Total Trades</h3>
+                            <p id="total-trades">0</p>
+                        </div>
+                    </div>
+                    <div class="stat-change" id="trades-today">0 today</div>
                 </div>
             </div>
 
-            <!-- Price Monitor -->
-            <div class="bg-gray-800 rounded-lg shadow-xl p-6">
-                <h2 class="text-xl font-semibold mb-4 text-blue-300">
-                    <i class="fas fa-chart-area mr-2"></i>
-                    Price Monitor
-                </h2>
-                <div id="price-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <div class="text-center py-8 text-gray-500">
-                        <i class="fas fa-spinner fa-spin mr-2"></i>
-                        Loading price data...
+            <div class="stat-card">
+                <div class="stat-content">
+                    <div class="stat-info">
+                        <div class="stat-icon stat-icon-success">✅</div>
+                        <div class="stat-text">
+                            <h3>Success Rate</h3>
+                            <p id="success-rate">0%</p>
+                        </div>
                     </div>
+                    <div class="stat-change" id="failed-trades">0 failed</div>
                 </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-content">
+                    <div class="stat-info">
+                        <div class="stat-icon stat-icon-uptime">⏱️</div>
+                        <div class="stat-text">
+                            <h3>Uptime</h3>
+                            <p id="uptime">0h 0m</p>
+                        </div>
+                    </div>
+                    <div class="stat-change">Running</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Opportunities Section -->
+        <div class="opportunities-section">
+            <div class="section-header">
+                <div class="section-title">
+                    <span>🎯</span>
+                    <span>Live Opportunities</span>
+                </div>
+                <div class="loading" id="opportunities-loading" style="display: none;"></div>
+            </div>
+            
+            <div style="overflow-x: auto;">
+                <table class="opportunities-table">
+                    <thead>
+                        <tr>
+                            <th>Token Pair</th>
+                            <th>DEX A</th>
+                            <th>DEX B</th>
+                            <th>Profit</th>
+                            <th>Percentage</th>
+                            <th>Gas Est.</th>
+                        </tr>
+                    </thead>
+                    <tbody id="opportunities-table-body">
+                        <tr>
+                            <td colspan="6" style="text-align: center; padding: 2rem; color: #94a3b8;">
+                                Loading opportunities...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
 
     <script>
         let isTrading = false;
-        
-        // Auto-refresh data every 5 seconds
-        setInterval(refreshData, 5000);
-        
-        // Initial load
-        refreshData();
+        let isPaused = false;
 
+        // Show alert function
+        function showAlert(message, type = 'success') {
+            const alert = document.getElementById('alert');
+            const alertMessage = document.getElementById('alert-message');
+            
+            alert.className = `alert ${type}`;
+            alertMessage.textContent = message;
+            alert.style.display = 'block';
+            
+            setTimeout(() => {
+                alert.style.display = 'none';
+            }, 5000);
+        }
+
+        // Trading control functions
         async function startTrading() {
             try {
                 const response = await axios.post('/api/start');
-                showNotification('Trading started!', 'success');
                 isTrading = true;
-                updateStatusIndicator();
+                isPaused = false;
+                updateStatus('Running', '#10b981');
+                showAlert('Trading started successfully!', 'success');
             } catch (error) {
-                showNotification('Failed to start trading: ' + (error.response?.data?.error || error.message), 'error');
+                showAlert('Failed to start trading: ' + error.message, 'error');
             }
         }
 
         async function pauseTrading() {
             try {
                 const response = await axios.post('/api/pause');
-                showNotification('Trading paused!', 'warning');
-                updateStatusIndicator();
+                isPaused = true;
+                updateStatus('Paused', '#eab308');
+                showAlert('Trading paused', 'success');
             } catch (error) {
-                showNotification('Failed to pause trading: ' + (error.response?.data?.error || error.message), 'error');
+                showAlert('Failed to pause trading: ' + error.message, 'error');
             }
         }
 
         async function stopTrading() {
             try {
                 const response = await axios.post('/api/stop');
-                showNotification('Trading stopped!', 'info');
                 isTrading = false;
-                updateStatusIndicator();
+                isPaused = false;
+                updateStatus('Stopped', '#ef4444');
+                showAlert('Trading stopped', 'success');
             } catch (error) {
-                showNotification('Failed to stop trading: ' + (error.response?.data?.error || error.message), 'error');
+                showAlert('Failed to stop trading: ' + error.message, 'error');
             }
         }
 
         async function refreshData() {
+            const refreshIcon = document.getElementById('refresh-icon');
+            refreshIcon.style.animation = 'spin 1s linear infinite';
+            
             try {
-                // Fetch all data in parallel
-                const [opportunities, prices, stats] = await Promise.all([
-                    axios.get('/api/opportunities'),
-                    axios.get('/api/prices'),
-                    axios.get('/api/stats')
-                ]);
-
-                updateOpportunities(opportunities.data.opportunities);
-                updatePrices(prices.data.prices);
-                updateStats(stats.data);
+                await Promise.all([loadStats(), loadOpportunities()]);
+                showAlert('Data refreshed successfully!', 'success');
             } catch (error) {
-                console.error('Failed to refresh data:', error);
+                showAlert('Failed to refresh data: ' + error.message, 'error');
+            }
+            
+            refreshIcon.style.animation = '';
+        }
+
+        // Update status display
+        function updateStatus(text, color) {
+            const statusText = document.getElementById('status-text');
+            const statusDot = document.querySelector('.status-dot');
+            
+            statusText.textContent = text;
+            statusDot.style.background = color;
+        }
+
+        // Load statistics
+        async function loadStats() {
+            try {
+                const response = await axios.get('/api/stats');
+                const stats = response.data;
+                
+                document.getElementById('total-profit').textContent = `$${stats.totalProfit || '0.00'}`;
+                document.getElementById('total-trades').textContent = stats.totalTrades || '0';
+                document.getElementById('success-rate').textContent = `${stats.successRate || '0'}%`;
+                document.getElementById('uptime').textContent = formatUptime(stats.uptime || 0);
+                
+            } catch (error) {
+                console.error('Failed to load stats:', error);
             }
         }
 
-        function updateOpportunities(opportunities) {
-            const table = document.getElementById('opportunities-table');
-            const count = document.getElementById('opportunities-count');
+        // Load opportunities
+        async function loadOpportunities() {
+            const tableBody = document.getElementById('opportunities-table-body');
+            const loading = document.getElementById('opportunities-loading');
             
-            count.textContent = opportunities.length;
-
-            if (opportunities.length === 0) {
-                table.innerHTML = `
+            loading.style.display = 'block';
+            
+            try {
+                const response = await axios.get('/api/opportunities');
+                const opportunities = response.data.opportunities || [];
+                
+                if (opportunities.length === 0) {
+                    tableBody.innerHTML = `
+                        <tr>
+                            <td colspan="6" style="text-align: center; padding: 2rem; color: #94a3b8;">
+                                No opportunities found
+                            </td>
+                        </tr>
+                    `;
+                } else {
+                    tableBody.innerHTML = opportunities.map(opp => `
+                        <tr>
+                            <td>${opp.tokenA?.slice(0, 8)}.../${opp.tokenB?.slice(0, 8)}...</td>
+                            <td>${opp.dexA?.name || 'Unknown'}</td>
+                            <td>${opp.dexB?.name || 'Unknown'}</td>
+                            <td class="profit-positive">$${opp.expectedProfit || '0.00'}</td>
+                            <td><span class="profit-percentage">${(opp.profitPercentage || 0).toFixed(2)}%</span></td>
+                            <td>${opp.gasEstimate || '0.000'} ETH</td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (error) {
+                tableBody.innerHTML = `
                     <tr>
-                        <td colspan="5" class="text-center py-8 text-gray-500">
-                            <i class="fas fa-search mr-2"></i>
-                            No profitable opportunities found
+                        <td colspan="6" style="text-align: center; padding: 2rem; color: #ef4444;">
+                            Failed to load opportunities
                         </td>
                     </tr>
                 `;
-                return;
-            }
-
-            table.innerHTML = opportunities.map(opp => `
-                <tr class="border-b border-gray-700 hover:bg-gray-700">
-                    <td class="py-3 px-4 font-medium">${getTokenSymbol(opp.tokenA)} / ${getTokenSymbol(opp.tokenB)}</td>
-                    <td class="py-3 px-4">${opp.dexA.name} → ${opp.dexB.name}</td>
-                    <td class="py-3 px-4">
-                        <span class="text-green-400 font-semibold">${opp.profitPercentage.toFixed(4)}%</span>
-                    </td>
-                    <td class="py-3 px-4">${parseFloat(opp.expectedProfit).toFixed(6)} ETH</td>
-                    <td class="py-3 px-4 text-gray-400">${getTimeAgo(opp.timestamp)}</td>
-                </tr>
-            `).join('');
-        }
-
-        function updatePrices(prices) {
-            const grid = document.getElementById('price-grid');
-            
-            if (prices.length === 0) {
-                grid.innerHTML = `
-                    <div class="text-center py-8 text-gray-500 col-span-3">
-                        <i class="fas fa-chart-line mr-2"></i>
-                        No price data available
-                    </div>
-                `;
-                return;
-            }
-
-            grid.innerHTML = prices.map(price => `
-                <div class="bg-gray-700 rounded-lg p-4">
-                    <div class="flex justify-between items-center mb-2">
-                        <h3 class="font-semibold">${price.symbol}</h3>
-                        <span class="text-xs text-gray-400">${price.source}</span>
-                    </div>
-                    <div class="text-2xl font-bold mb-1">$${price.price.toFixed(4)}</div>
-                    <div class="text-sm ${price.change24h >= 0 ? 'text-green-400' : 'text-red-400'}">
-                        ${price.change24h >= 0 ? '+' : ''}${price.change24h.toFixed(2)}%
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        function updateStats(stats) {
-            const trading = stats.trading || {};
-            
-            // Update demo mode indicator
-            const demoBadge = document.getElementById('demo-badge');
-            if (stats.mode === 'demo') {
-                demoBadge.textContent = 'DEMO MODE';
-                demoBadge.className = 'ml-3 text-sm bg-yellow-500 text-black px-2 py-1 rounded-full font-medium';
-            } else {
-                demoBadge.textContent = 'LIVE MODE';
-                demoBadge.className = 'ml-3 text-sm bg-red-500 text-white px-2 py-1 rounded-full font-medium animate-pulse';
+                console.error('Failed to load opportunities:', error);
             }
             
-            document.getElementById('total-profit').textContent = 
-                '$' + parseFloat(trading.totalProfit || '0').toFixed(4);
-            document.getElementById('total-trades').textContent = trading.totalTrades || 0;
-            
-            const successRate = trading.totalTrades > 0 
-                ? ((trading.successfulTrades || 0) / trading.totalTrades * 100).toFixed(1)
-                : '0';
-            document.getElementById('success-rate').textContent = successRate + '%';
+            loading.style.display = 'none';
         }
 
-        function updateStatusIndicator() {
-            const indicator = document.getElementById('status-indicator');
-            if (isTrading) {
-                indicator.innerHTML = `
-                    <div class="h-3 w-3 bg-green-500 rounded-full animate-pulse"></div>
-                    <span class="text-sm">Trading Active</span>
-                `;
-            } else {
-                indicator.innerHTML = `
-                    <div class="h-3 w-3 bg-yellow-500 rounded-full animate-pulse"></div>
-                    <span class="text-sm">Monitoring Mode</span>
-                `;
-            }
+        // Format uptime
+        function formatUptime(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            return `${hours}h ${minutes}m`;
         }
 
-        function getTokenSymbol(address) {
-            const tokenMap = {
-                '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2': 'WETH',
-                '0xA0b86a33E6417c13C812C72De3FE58dD2C5d1D65': 'USDC',
-                '0xdAC17F958D2ee523a2206206994597C13D831ec7': 'USDT',
-                '0x6B175474E89094C44Da98b954EedeAC495271d0F': 'DAI',
-                '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599': 'WBTC'
-            };
-            return tokenMap[address] || address.slice(0, 8) + '...';
+        // Initialize the application
+        async function initialize() {
+            updateStatus('Connected', '#10b981');
+            await loadStats();
+            await loadOpportunities();
+            
+            // Auto-refresh every 5 seconds
+            setInterval(() => {
+                if (!document.hidden) {
+                    loadOpportunities();
+                }
+            }, 5000);
+            
+            // Auto-refresh stats every 10 seconds
+            setInterval(() => {
+                if (!document.hidden) {
+                    loadStats();
+                }
+            }, 10000);
         }
 
-        function getTimeAgo(timestamp) {
-            const seconds = Math.floor((Date.now() - timestamp) / 1000);
-            if (seconds < 60) return seconds + 's ago';
-            const minutes = Math.floor(seconds / 60);
-            if (minutes < 60) return minutes + 'm ago';
-            const hours = Math.floor(minutes / 60);
-            return hours + 'h ago';
-        }
-
-        function showNotification(message, type) {
-            // Simple notification system - could be enhanced with a proper toast library
-            const colors = {
-                success: 'bg-green-500',
-                error: 'bg-red-500',
-                warning: 'bg-yellow-500',
-                info: 'bg-blue-500'
-            };
-            
-            const notification = document.createElement('div');
-            notification.className = `fixed top-4 right-4 ${colors[type]} text-white px-6 py-3 rounded-lg shadow-lg z-50`;
-            notification.textContent = message;
-            
-            document.body.appendChild(notification);
-            
-            setTimeout(() => {
-                notification.remove();
-            }, 3000);
-        }
+        // Start when page loads
+        document.addEventListener('DOMContentLoaded', initialize);
     </script>
 </body>
 </html>
