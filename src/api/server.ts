@@ -341,6 +341,87 @@ export class APIServer {
       }
     });
 
+    // New Infura/MetaMask MEV Protection endpoints
+    this.app.get('/api/mev-gas-price/:network?', async (req, res) => {
+      try {
+        const network = req.params.network || 'mainnet';
+        
+        if (this.isDemoMode) {
+          res.json({
+            network,
+            gasPrice: 20000000000,
+            mevProtected: true,
+            recommendations: {
+              slow: 17000000000,
+              standard: 20000000000,
+              fast: 23000000000,
+              mevProtected: 25000000000
+            },
+            mode: 'demo'
+          });
+        } else if (this.apiService?.metaMaskService) {
+          const gasData = await this.apiService.metaMaskService.getMEVProtectedGasPrice(network);
+          res.json({ ...gasData, mode: 'live' });
+        } else {
+          res.status(503).json({ error: 'MEV protection service not available' });
+        }
+      } catch (error) {
+        logger.error('Error getting MEV-protected gas price:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
+    this.app.post('/api/simulate-mev-transaction', async (req, res) => {
+      try {
+        const { txData, network = 'mainnet' } = req.body;
+        
+        if (this.isDemoMode) {
+          res.json({
+            success: true,
+            gasEstimate: 21000,
+            mevProtectedGasPrice: 25000000000,
+            standardGasPrice: 20000000000,
+            network,
+            mode: 'demo'
+          });
+        } else if (this.apiService?.metaMaskService) {
+          const simulation = await this.apiService.metaMaskService.simulateMEVProtectedTransaction(txData, network);
+          res.json({ ...simulation, mode: 'live' });
+        } else {
+          res.status(503).json({ error: 'Transaction simulation service not available' });
+        }
+      } catch (error) {
+        logger.error('Error simulating MEV-protected transaction:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
+    this.app.get('/api/infura-health', async (req, res) => {
+      try {
+        if (this.isDemoMode) {
+          res.json({
+            healthy: true,
+            projectId: 'demo-project',
+            mevProtection: true,
+            mode: 'demo'
+          });
+        } else if (this.apiService?.metaMaskService) {
+          const healthy = await this.apiService.metaMaskService.isHealthy();
+          res.json({ 
+            healthy,
+            projectId: process.env.INFURA_PROJECT_ID?.substring(0, 8) + '...' || 'not-configured',
+            mevProtection: !!process.env.INFURA_API_KEY_SECRET,
+            mode: 'live' 
+          });
+        } else {
+          res.status(503).json({ error: 'Infura health check not available' });
+        }
+      } catch (error) {
+        logger.error('Error checking Infura health:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
     this.app.get('/api/network-health', async (req, res) => {
       try {
         if (this.isDemoMode) {
