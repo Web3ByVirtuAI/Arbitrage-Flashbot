@@ -98,7 +98,7 @@ export class APIServer {
       const privateKey = process.env.PRIVATE_KEY;
       const alchemyApiKey = process.env.ALCHEMY_API_KEY;
       
-      this.isDemoMode = !alchemyApiKey;
+      this.isDemoMode = false; // Force production mode for advanced UI
       
       // Initialize flash loan services for all modes
       this.flashLoanProviderService = new FlashLoanProviderService();

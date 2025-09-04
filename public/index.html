@@ -3,13 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flash Loan Arbitrage Bot</title>
+    <title>Advanced Flash Loan Arbitrage System</title>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <!-- Cache Buster: 2025-09-04-12:53 -->
+    
+    <!-- External Dependencies -->
     <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+    
     <style>
         * {
             margin: 0;
@@ -18,105 +21,61 @@
         }
         
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', sans-serif;
+            background: #0a0a0a;
             color: #ffffff;
-            min-height: 100vh;
-            position: relative;
+            line-height: 1.6;
             overflow-x: hidden;
         }
         
-        /* Background Effects */
-        .bg-effect {
-            position: fixed;
-            border-radius: 50%;
-            filter: blur(100px);
-            opacity: 0.1;
-            pointer-events: none;
-            z-index: 0;
-        }
-        
-        .bg-effect-1 {
-            top: 0;
-            left: 0;
-            width: 300px;
-            height: 300px;
-            background: #3b82f6;
-        }
-        
-        .bg-effect-2 {
-            bottom: 0;
-            right: 0;
-            width: 400px;
-            height: 400px;
-            background: #8b5cf6;
-        }
-        
-        .bg-effect-3 {
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 250px;
-            height: 250px;
-            background: #10b981;
+        /* Dark Modern Theme */
+        :root {
+            --primary: #00f5ff;
+            --primary-hover: #00d4e6;
+            --secondary: #ff6b35;
+            --success: #00ff88;
+            --warning: #ffaa00;
+            --error: #ff4757;
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #1a1a1a;
+            --bg-tertiary: #2a2a2a;
+            --border: #333;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
         }
         
         /* Header */
-        header {
-            background: rgba(15, 23, 42, 0.8);
-            backdrop-filter: blur(20px);
-            border-bottom: 1px solid #374151;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
-            position: relative;
-            z-index: 10;
+        .header {
+            background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+            border-bottom: 2px solid var(--primary);
+            padding: 1rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(10px);
         }
         
         .header-content {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 1.5rem 1rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            max-width: 1400px;
+            margin: 0 auto;
         }
         
-        .logo-section {
+        .logo {
             display: flex;
             align-items: center;
-            gap: 1rem;
-        }
-        
-        .logo-icon {
-            width: 50px;
-            height: 50px;
-            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            gap: 0.75rem;
             font-size: 1.5rem;
-            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+            font-weight: 700;
+            color: var(--primary);
         }
         
-        .logo-text h1 {
-            font-size: 2rem;
-            font-weight: bold;
-            background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-            color: transparent;
-        }
-        
-        .logo-text p {
-            color: #94a3b8;
-            font-size: 0.875rem;
-        }
-        
-        .header-controls {
+        .system-status {
             display: flex;
             align-items: center;
-            gap: 1rem;
+            gap: 1.5rem;
         }
         
         .status-indicator {
@@ -124,667 +83,693 @@
             align-items: center;
             gap: 0.5rem;
             padding: 0.5rem 1rem;
-            background: #1e293b;
-            border: 1px solid #475569;
-            border-radius: 25px;
+            border-radius: 6px;
+            background: rgba(255,255,255,0.05);
             font-size: 0.875rem;
+            font-weight: 500;
         }
         
         .status-dot {
             width: 8px;
             height: 8px;
             border-radius: 50%;
-            background: #eab308;
             animation: pulse 2s infinite;
         }
+        
+        .status-online { background: var(--success); }
+        .status-warning { background: var(--warning); }
+        .status-error { background: var(--error); }
         
         @keyframes pulse {
             0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+            50% { opacity: 0.6; }
         }
         
-        /* Main Content */
-        .main-content {
-            max-width: 1200px;
+        /* Main Container */
+        .container {
+            max-width: 1400px;
             margin: 0 auto;
-            padding: 2rem 1rem;
-            position: relative;
-            z-index: 10;
-        }
-        
-        /* Control Panel */
-        .control-panel {
-            background: rgba(30, 41, 59, 0.6);
-            backdrop-filter: blur(20px);
-            border-radius: 20px;
-            border: 1px solid #374151;
             padding: 2rem;
-            margin-bottom: 2rem;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
         }
         
-        .panel-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 2rem;
-        }
-        
-        .panel-title {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            font-size: 1.25rem;
-            font-weight: 600;
-        }
-        
-        .panel-icon {
-            width: 40px;
-            height: 40px;
-            background: rgba(59, 130, 246, 0.2);
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #60a5fa;
-        }
-        
-        .connection-status {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-size: 0.875rem;
-            color: #94a3b8;
-        }
-        
-        .connection-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #10b981;
-            animation: pulse 2s infinite;
-        }
-        
-        /* Button Grid */
-        .button-grid {
+        /* Dashboard Grid */
+        .dashboard-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
         }
         
-        .control-btn {
-            padding: 1rem 1.5rem;
-            border: none;
+        .metric-card {
+            background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+            border: 1px solid var(--border);
             border-radius: 12px;
-            font-weight: 600;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
+            padding: 1.5rem;
             position: relative;
             overflow: hidden;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
         }
         
-        .control-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+        .metric-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
         }
         
-        .control-btn:active {
-            transform: translateY(0);
-        }
-        
-        .btn-start {
-            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-            color: white;
-        }
-        
-        .btn-pause {
-            background: linear-gradient(135deg, #eab308 0%, #d97706 100%);
-            color: white;
-        }
-        
-        .btn-stop {
-            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-            color: white;
-        }
-        
-        .btn-refresh {
-            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
-            color: white;
-        }
-        
-        /* Stats Grid */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 2rem;
-        }
-        
-        .stat-card {
-            background: rgba(30, 41, 59, 0.6);
-            backdrop-filter: blur(20px);
-            border-radius: 20px;
-            border: 1px solid #374151;
-            padding: 2rem;
-            transition: all 0.3s ease;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
-        }
-        
-        .stat-card:hover {
-            border-color: #10b981;
-            transform: translateY(-5px);
-        }
-        
-        .stat-content {
+        .metric-header {
             display: flex;
+            justify-content: between;
             align-items: center;
-            justify-content: space-between;
+            margin-bottom: 1rem;
         }
         
-        .stat-info {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-        
-        .stat-icon {
-            width: 50px;
-            height: 50px;
-            border-radius: 12px;
+        .metric-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.25rem;
+            font-size: 1.2rem;
         }
         
-        .stat-icon-profit {
-            background: rgba(16, 185, 129, 0.2);
-            color: #10b981;
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
         }
         
-        .stat-icon-trades {
-            background: rgba(59, 130, 246, 0.2);
-            color: #3b82f6;
-        }
-        
-        .stat-icon-success {
-            background: rgba(139, 92, 246, 0.2);
-            color: #8b5cf6;
-        }
-        
-        .stat-icon-uptime {
-            background: rgba(234, 179, 8, 0.2);
-            color: #eab308;
-        }
-        
-        .stat-text h3 {
+        .metric-label {
+            color: var(--text-secondary);
             font-size: 0.875rem;
-            color: #94a3b8;
-            margin-bottom: 0.25rem;
+            font-weight: 500;
         }
         
-        .stat-text p {
-            font-size: 1.5rem;
-            font-weight: bold;
+        /* Tabs */
+        .tabs {
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 2rem;
         }
         
-        .stat-text .profit {
-            color: #10b981;
-        }
-        
-        .stat-change {
-            font-size: 0.75rem;
-            color: #94a3b8;
-        }
-        
-        /* Opportunities Table */
-        .opportunities-section {
-            background: rgba(30, 41, 59, 0.6);
-            backdrop-filter: blur(20px);
-            border-radius: 20px;
-            border: 1px solid #374151;
-            padding: 2rem;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
-        }
-        
-        .section-header {
+        .tab-buttons {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            gap: 0;
+        }
+        
+        .tab-button {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            padding: 1rem 1.5rem;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+        
+        .tab-button:hover {
+            color: var(--text-primary);
+        }
+        
+        .tab-button.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        /* Cards */
+        .card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
             margin-bottom: 1.5rem;
         }
         
-        .section-title {
+        .card-header {
             display: flex;
+            justify-content: space-between;
             align-items: center;
-            gap: 1rem;
-            font-size: 1.25rem;
-            font-weight: 600;
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid var(--border);
         }
         
-        .opportunities-table {
+        .card-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        /* Tables */
+        .table {
             width: 100%;
             border-collapse: collapse;
         }
         
-        .opportunities-table th {
+        .table th,
+        .table td {
             text-align: left;
-            padding: 1rem;
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .table th {
+            background: rgba(255,255,255,0.02);
             font-weight: 600;
-            color: #94a3b8;
-            border-bottom: 1px solid #374151;
-        }
-        
-        .opportunities-table td {
-            padding: 1rem;
-            border-bottom: 1px solid #374151;
-        }
-        
-        .opportunities-table tr:hover {
-            background: rgba(59, 130, 246, 0.1);
-        }
-        
-        .profit-positive {
-            color: #10b981;
-            font-weight: 600;
-        }
-        
-        .profit-percentage {
-            background: rgba(16, 185, 129, 0.2);
-            color: #10b981;
-            padding: 0.25rem 0.5rem;
-            border-radius: 6px;
+            color: var(--text-secondary);
             font-size: 0.875rem;
         }
         
-        /* Loading Animation */
+        .table tr:hover {
+            background: rgba(255,255,255,0.02);
+        }
+        
+        /* Buttons */
+        .btn {
+            background: var(--primary);
+            color: #000;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.875rem;
+            transition: all 0.3s ease;
+        }
+        
+        .btn:hover {
+            background: var(--primary-hover);
+            transform: translateY(-1px);
+        }
+        
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+        
+        .btn-secondary:hover {
+            background: var(--border);
+        }
+        
+        .btn-success {
+            background: var(--success);
+            color: #000;
+        }
+        
+        .btn-warning {
+            background: var(--warning);
+            color: #000;
+        }
+        
+        .btn-danger {
+            background: var(--error);
+            color: #fff;
+        }
+        
+        /* Charts */
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin: 1rem 0;
+        }
+        
+        /* Loading */
         .loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(255,255,255,.3);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-secondary);
+        }
+        
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--border);
+            border-top: 2px solid var(--primary);
             border-radius: 50%;
-            border-top-color: #fff;
-            animation: spin 1s ease-in-out infinite;
+            animation: spin 1s linear infinite;
         }
         
         @keyframes spin {
-            to { transform: rotate(360deg); }
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
         
-        /* Alert */
-        .alert {
-            padding: 1rem;
+        /* Badges */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .badge-success {
+            background: rgba(0, 255, 136, 0.1);
+            color: var(--success);
+        }
+        
+        .badge-warning {
+            background: rgba(255, 170, 0, 0.1);
+            color: var(--warning);
+        }
+        
+        .badge-error {
+            background: rgba(255, 71, 87, 0.1);
+            color: var(--error);
+        }
+        
+        /* Network badges */
+        .network-badge {
+            padding: 0.25rem 0.5rem;
             border-radius: 12px;
-            border-left: 4px solid #3b82f6;
-            background: rgba(59, 130, 246, 0.1);
-            margin-bottom: 1.5rem;
-            display: none;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
         }
         
-        .alert.success {
-            border-left-color: #10b981;
-            background: rgba(16, 185, 129, 0.1);
-            color: #10b981;
+        .network-ethereum {
+            background: rgba(98, 126, 234, 0.2);
+            color: #627eea;
         }
         
-        .alert.error {
-            border-left-color: #ef4444;
-            background: rgba(239, 68, 68, 0.1);
-            color: #ef4444;
+        .network-polygon {
+            background: rgba(130, 71, 229, 0.2);
+            color: #8247e5;
+        }
+        
+        .network-arbitrum {
+            background: rgba(28, 150, 216, 0.2);
+            color: #1c96d8;
+        }
+        
+        .network-optimism {
+            background: rgba(255, 4, 32, 0.2);
+            color: #ff0420;
+        }
+        
+        .network-bsc {
+            background: rgba(243, 186, 47, 0.2);
+            color: #f3ba2f;
         }
         
         /* Responsive */
+        @media (max-width: 1200px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+        
         @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
             .header-content {
                 flex-direction: column;
                 gap: 1rem;
             }
             
-            .button-grid {
+            .dashboard-grid {
                 grid-template-columns: 1fr;
+                gap: 1rem;
             }
             
-            .stats-grid {
-                grid-template-columns: 1fr;
+            .tab-buttons {
+                overflow-x: auto;
+                white-space: nowrap;
             }
-            
-            .logo-text h1 {
-                font-size: 1.5rem;
-            }
+        }
+        
+        /* Animation classes */
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Profit highlighting */
+        .profit-positive {
+            color: var(--success);
+            font-weight: 600;
+        }
+        
+        .profit-negative {
+            color: var(--error);
+            font-weight: 600;
+        }
+        
+        /* Provider reliability indicators */
+        .reliability-high {
+            color: var(--success);
+        }
+        
+        .reliability-medium {
+            color: var(--warning);
+        }
+        
+        .reliability-low {
+            color: var(--error);
         }
     </style>
 </head>
 <body>
-    <!-- Background Effects -->
-    <div class="bg-effect bg-effect-1"></div>
-    <div class="bg-effect bg-effect-2"></div>
-    <div class="bg-effect bg-effect-3"></div>
-
     <!-- Header -->
-    <header>
+    <header class="header">
         <div class="header-content">
-            <div class="logo-section">
-                <div class="logo-icon">⚡</div>
-                <div class="logo-text">
-                    <h1>Flash Loan Arbitrage Bot</h1>
-                    <p>Advanced DeFi Trading Engine</p>
-                </div>
+            <div class="logo">
+                <i class="fas fa-bolt"></i>
+                Advanced Arbitrage System
             </div>
-            <div class="header-controls">
+            <div class="system-status">
                 <div class="status-indicator">
-                    <div class="status-dot"></div>
-                    <span id="status-text">Initializing...</span>
+                    <div class="status-dot status-online" id="api-status"></div>
+                    <span>API Status</span>
+                </div>
+                <div class="status-indicator">
+                    <div class="status-dot status-warning" id="flash-loan-status"></div>
+                    <span>Flash Loans</span>
+                </div>
+                <div class="status-indicator">
+                    <div class="status-dot status-online" id="dex-status"></div>
+                    <span>DEX Monitor</span>
                 </div>
             </div>
         </div>
     </header>
 
-    <div class="main-content">
-        <!-- Alert -->
-        <div id="alert" class="alert">
-            <div id="alert-message"></div>
+    <!-- Main Content -->
+    <div class="container">
+        <!-- Dashboard Metrics -->
+        <div class="dashboard-grid">
+            <div class="metric-card">
+                <div class="metric-header">
+                    <div class="metric-icon" style="background: rgba(0, 245, 255, 0.1); color: var(--primary);">
+                        <i class="fas fa-search-dollar"></i>
+                    </div>
+                </div>
+                <div class="metric-value" id="opportunities-count">
+                    <span class="loading"><div class="spinner"></div> Loading...</span>
+                </div>
+                <div class="metric-label">Active Opportunities</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-header">
+                    <div class="metric-icon" style="background: rgba(0, 255, 136, 0.1); color: var(--success);">
+                        <i class="fas fa-coins"></i>
+                    </div>
+                </div>
+                <div class="metric-value" id="profit-potential">
+                    <span class="loading"><div class="spinner"></div> Loading...</span>
+                </div>
+                <div class="metric-label">Total Profit Potential</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-header">
+                    <div class="metric-icon" style="background: rgba(255, 170, 0, 0.1); color: var(--warning);">
+                        <i class="fas fa-network-wired"></i>
+                    </div>
+                </div>
+                <div class="metric-value" id="networks-active">
+                    <span class="loading"><div class="spinner"></div> Loading...</span>
+                </div>
+                <div class="metric-label">Networks Monitored</div>
+            </div>
         </div>
 
-        <!-- Control Panel -->
-        <div class="control-panel">
-            <div class="panel-header">
-                <div class="panel-title">
-                    <div class="panel-icon">🎛️</div>
-                    <span>Trading Controls</span>
+        <!-- Navigation Tabs -->
+        <div class="tabs">
+            <div class="tab-buttons">
+                <button class="tab-button active" onclick="showTab('opportunities')">
+                    <i class="fas fa-chart-line"></i> Opportunities
+                </button>
+                <button class="tab-button" onclick="showTab('flash-loans')">
+                    <i class="fas fa-bolt"></i> Flash Loans
+                </button>
+                <button class="tab-button" onclick="showTab('dex-monitor')">
+                    <i class="fas fa-exchange-alt"></i> DEX Monitor
+                </button>
+                <button class="tab-button" onclick="showTab('execution')">
+                    <i class="fas fa-play-circle"></i> Execution Engine
+                </button>
+                <button class="tab-button" onclick="showTab('analytics')">
+                    <i class="fas fa-chart-bar"></i> Analytics
+                </button>
+            </div>
+        </div>
+
+        <!-- Tab Content: Opportunities -->
+        <div id="opportunities" class="tab-content active">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-search-dollar"></i>
+                        Live Arbitrage Opportunities
+                    </h3>
+                    <button class="btn" onclick="refreshOpportunities()">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
                 </div>
-                <div class="connection-status">
-                    <div class="connection-dot"></div>
-                    <span>Connected</span>
+                <div id="opportunities-table">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        Loading opportunities...
+                    </div>
                 </div>
             </div>
             
-            <div class="button-grid">
-                <button class="control-btn btn-start" onclick="startTrading()">
-                    <span>▶️</span>
-                    <span>Start Trading</span>
-                </button>
-                
-                <button class="control-btn btn-pause" onclick="pauseTrading()">
-                    <span>⏸️</span>
-                    <span>Pause Trading</span>
-                </button>
-                
-                <button class="control-btn btn-stop" onclick="stopTrading()">
-                    <span>⏹️</span>
-                    <span>Stop Trading</span>
-                </button>
-                
-                <button class="control-btn btn-refresh" onclick="refreshData()">
-                    <span id="refresh-icon">🔄</span>
-                    <span>Refresh</span>
-                </button>
-            </div>
-        </div>
-
-        <!-- Stats Grid -->
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-content">
-                    <div class="stat-info">
-                        <div class="stat-icon stat-icon-profit">📈</div>
-                        <div class="stat-text">
-                            <h3>Total Profit</h3>
-                            <p class="profit" id="total-profit">$0.00</p>
-                        </div>
-                    </div>
-                    <div class="stat-change" id="profit-change">+0.00%</div>
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-globe"></i>
+                        Cross-DEX Opportunities
+                    </h3>
                 </div>
-            </div>
-
-            <div class="stat-card">
-                <div class="stat-content">
-                    <div class="stat-info">
-                        <div class="stat-icon stat-icon-trades">🔄</div>
-                        <div class="stat-text">
-                            <h3>Total Trades</h3>
-                            <p id="total-trades">0</p>
-                        </div>
+                <div id="cross-dex-opportunities">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        Scanning cross-DEX opportunities...
                     </div>
-                    <div class="stat-change" id="trades-today">0 today</div>
-                </div>
-            </div>
-
-            <div class="stat-card">
-                <div class="stat-content">
-                    <div class="stat-info">
-                        <div class="stat-icon stat-icon-success">✅</div>
-                        <div class="stat-text">
-                            <h3>Success Rate</h3>
-                            <p id="success-rate">0%</p>
-                        </div>
-                    </div>
-                    <div class="stat-change" id="failed-trades">0 failed</div>
-                </div>
-            </div>
-
-            <div class="stat-card">
-                <div class="stat-content">
-                    <div class="stat-info">
-                        <div class="stat-icon stat-icon-uptime">⏱️</div>
-                        <div class="stat-text">
-                            <h3>Uptime</h3>
-                            <p id="uptime">0h 0m</p>
-                        </div>
-                    </div>
-                    <div class="stat-change">Running</div>
                 </div>
             </div>
         </div>
 
-        <!-- Opportunities Section -->
-        <div class="opportunities-section">
-            <div class="section-header">
-                <div class="section-title">
-                    <span>🎯</span>
-                    <span>Live Opportunities</span>
+        <!-- Tab Content: Flash Loans -->
+        <div id="flash-loans" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-bolt"></i>
+                        Flash Loan Providers
+                    </h3>
+                    <div>
+                        <select id="network-select" onchange="loadFlashLoanProviders()">
+                            <option value="ethereum">Ethereum</option>
+                            <option value="polygon">Polygon</option>
+                            <option value="arbitrum">Arbitrum</option>
+                            <option value="optimism">Optimism</option>
+                            <option value="bsc">BSC</option>
+                        </select>
+                    </div>
                 </div>
-                <div class="loading" id="opportunities-loading" style="display: none;"></div>
+                <div id="flash-loan-providers">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        Loading flash loan providers...
+                    </div>
+                </div>
             </div>
             
-            <div style="overflow-x: auto;">
-                <table class="opportunities-table">
-                    <thead>
-                        <tr>
-                            <th>Token Pair</th>
-                            <th>DEX A</th>
-                            <th>DEX B</th>
-                            <th>Profit</th>
-                            <th>Percentage</th>
-                            <th>Gas Est.</th>
-                        </tr>
-                    </thead>
-                    <tbody id="opportunities-table-body">
-                        <tr>
-                            <td colspan="6" style="text-align: center; padding: 2rem; color: #94a3b8;">
-                                Loading opportunities...
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-calculator"></i>
+                        Quote Calculator
+                    </h3>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 200px; gap: 1rem; align-items: end; margin-bottom: 1rem;">
+                    <div>
+                        <label>Network:</label>
+                        <select id="quote-network">
+                            <option value="ethereum">Ethereum</option>
+                            <option value="polygon">Polygon</option>
+                            <option value="arbitrum">Arbitrum</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Token:</label>
+                        <select id="quote-token">
+                            <option value="WETH">WETH</option>
+                            <option value="USDC">USDC</option>
+                            <option value="USDT">USDT</option>
+                            <option value="DAI">DAI</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Amount:</label>
+                        <input type="number" id="quote-amount" placeholder="10.0" step="0.1" min="0.1">
+                    </div>
+                    <div>
+                        <button class="btn" onclick="getFlashLoanQuotes()">
+                            <i class="fas fa-calculator"></i> Get Quotes
+                        </button>
+                    </div>
+                </div>
+                <div id="flash-loan-quotes">
+                    <!-- Quote results will be displayed here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab Content: DEX Monitor -->
+        <div id="dex-monitor" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-exchange-alt"></i>
+                        DEX Protocol Status
+                    </h3>
+                </div>
+                <div id="dex-status-grid">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        Loading DEX status...
+                    </div>
+                </div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-chart-pie"></i>
+                            Curve Finance Pools
+                        </h3>
+                    </div>
+                    <div id="curve-pools">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            Loading Curve pools...
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-balance-scale"></i>
+                            Balancer Pools
+                        </h3>
+                    </div>
+                    <div id="balancer-pools">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            Loading Balancer pools...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab Content: Execution Engine -->
+        <div id="execution" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-play-circle"></i>
+                        Executable Opportunities
+                    </h3>
+                    <button class="btn" onclick="findExecutableOpportunities()">
+                        <i class="fas fa-search"></i> Scan for Execution
+                    </button>
+                </div>
+                <div id="executable-opportunities">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        Scanning for executable opportunities...
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-cogs"></i>
+                        Execution Statistics
+                    </h3>
+                </div>
+                <div id="execution-stats">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        Loading execution statistics...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab Content: Analytics -->
+        <div id="analytics" class="tab-content">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-chart-line"></i>
+                            Profit Opportunities Over Time
+                        </h3>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="profit-chart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-chart-pie"></i>
+                            Network Distribution
+                        </h3>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="network-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-gas-pump"></i>
+                        Gas Price Analysis
+                    </h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="gas-chart"></canvas>
+                </div>
             </div>
         </div>
     </div>
 
-    <script>
-        let isTrading = false;
-        let isPaused = false;
-
-        // Show alert function
-        function showAlert(message, type = 'success') {
-            const alert = document.getElementById('alert');
-            const alertMessage = document.getElementById('alert-message');
-            
-            alert.className = `alert ${type}`;
-            alertMessage.textContent = message;
-            alert.style.display = 'block';
-            
-            setTimeout(() => {
-                alert.style.display = 'none';
-            }, 5000);
-        }
-
-        // Trading control functions
-        async function startTrading() {
-            try {
-                const response = await axios.post('/api/start');
-                isTrading = true;
-                isPaused = false;
-                updateStatus('Running', '#10b981');
-                showAlert('Trading started successfully!', 'success');
-            } catch (error) {
-                showAlert('Failed to start trading: ' + error.message, 'error');
-            }
-        }
-
-        async function pauseTrading() {
-            try {
-                const response = await axios.post('/api/pause');
-                isPaused = true;
-                updateStatus('Paused', '#eab308');
-                showAlert('Trading paused', 'success');
-            } catch (error) {
-                showAlert('Failed to pause trading: ' + error.message, 'error');
-            }
-        }
-
-        async function stopTrading() {
-            try {
-                const response = await axios.post('/api/stop');
-                isTrading = false;
-                isPaused = false;
-                updateStatus('Stopped', '#ef4444');
-                showAlert('Trading stopped', 'success');
-            } catch (error) {
-                showAlert('Failed to stop trading: ' + error.message, 'error');
-            }
-        }
-
-        async function refreshData() {
-            const refreshIcon = document.getElementById('refresh-icon');
-            refreshIcon.style.animation = 'spin 1s linear infinite';
-            
-            try {
-                await Promise.all([loadStats(), loadOpportunities()]);
-                showAlert('Data refreshed successfully!', 'success');
-            } catch (error) {
-                showAlert('Failed to refresh data: ' + error.message, 'error');
-            }
-            
-            refreshIcon.style.animation = '';
-        }
-
-        // Update status display
-        function updateStatus(text, color) {
-            const statusText = document.getElementById('status-text');
-            const statusDot = document.querySelector('.status-dot');
-            
-            statusText.textContent = text;
-            statusDot.style.background = color;
-        }
-
-        // Load statistics
-        async function loadStats() {
-            try {
-                const response = await axios.get('/api/stats');
-                const stats = response.data;
-                
-                document.getElementById('total-profit').textContent = `$${stats.totalProfit || '0.00'}`;
-                document.getElementById('total-trades').textContent = stats.totalTrades || '0';
-                document.getElementById('success-rate').textContent = `${stats.successRate || '0'}%`;
-                document.getElementById('uptime').textContent = formatUptime(stats.uptime || 0);
-                
-            } catch (error) {
-                console.error('Failed to load stats:', error);
-            }
-        }
-
-        // Load opportunities
-        async function loadOpportunities() {
-            const tableBody = document.getElementById('opportunities-table-body');
-            const loading = document.getElementById('opportunities-loading');
-            
-            loading.style.display = 'block';
-            
-            try {
-                const response = await axios.get('/api/opportunities');
-                const opportunities = response.data.opportunities || [];
-                
-                if (opportunities.length === 0) {
-                    tableBody.innerHTML = `
-                        <tr>
-                            <td colspan="6" style="text-align: center; padding: 2rem; color: #94a3b8;">
-                                No opportunities found
-                            </td>
-                        </tr>
-                    `;
-                } else {
-                    tableBody.innerHTML = opportunities.map(opp => `
-                        <tr>
-                            <td>${opp.tokenA?.slice(0, 8)}.../${opp.tokenB?.slice(0, 8)}...</td>
-                            <td>${opp.dexA?.name || 'Unknown'}</td>
-                            <td>${opp.dexB?.name || 'Unknown'}</td>
-                            <td class="profit-positive">$${opp.expectedProfit || '0.00'}</td>
-                            <td><span class="profit-percentage">${(opp.profitPercentage || 0).toFixed(2)}%</span></td>
-                            <td>${opp.gasEstimate || '0.000'} ETH</td>
-                        </tr>
-                    `).join('');
-                }
-            } catch (error) {
-                tableBody.innerHTML = `
-                    <tr>
-                        <td colspan="6" style="text-align: center; padding: 2rem; color: #ef4444;">
-                            Failed to load opportunities
-                        </td>
-                    </tr>
-                `;
-                console.error('Failed to load opportunities:', error);
-            }
-            
-            loading.style.display = 'none';
-        }
-
-        // Format uptime
-        function formatUptime(seconds) {
-            const hours = Math.floor(seconds / 3600);
-            const minutes = Math.floor((seconds % 3600) / 60);
-            return `${hours}h ${minutes}m`;
-        }
-
-        // Initialize the application
-        async function initialize() {
-            updateStatus('Connected', '#10b981');
-            await loadStats();
-            await loadOpportunities();
-            
-            // Auto-refresh every 5 seconds
-            setInterval(() => {
-                if (!document.hidden) {
-                    loadOpportunities();
-                }
-            }, 5000);
-            
-            // Auto-refresh stats every 10 seconds
-            setInterval(() => {
-                if (!document.hidden) {
-                    loadStats();
-                }
-            }, 10000);
-        }
-
-        // Start when page loads
-        document.addEventListener('DOMContentLoaded', initialize);
-    </script>
+    <script src="app.js"></script>
 </body>
 </html>
