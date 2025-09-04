@@ -10,6 +10,13 @@
 - **Goal**: Advanced cross-chain arbitrage trading bot with flash loan execution across 45+ blockchain networks
 - **Features**: Multi-chain scanning, cross-chain arbitrage detection, real-time monitoring, automated execution
 
+## 🚨 Security Warning
+**⚠️ CRITICAL: This repository contains NO sensitive data by design**
+- **NO** `.env` files in git (you create your own locally)
+- **NO** API keys in code (you add your own)
+- **NO** private keys anywhere (never commit these!)
+- **Your `.env` file**: Local only, never committed, gitignored for security
+
 ## 🏗️ Multi-Chain Architecture
 
 ### Core Components
@@ -94,12 +101,16 @@
 
 ### Installation
 ```bash
-# Clone and install dependencies
+# Clone repository
+git clone https://github.com/Web3ByVirtuAI/Arbitrage-Flashbot.git
+cd Arbitrage-Flashbot
+
+# Install dependencies
 npm install
 
-# Copy environment file and configure
-cp .env.example .env
-# Edit .env file with your configuration
+# Create your .env file (see Configuration section)
+touch .env
+# Add your API keys to .env file
 
 # Build TypeScript
 npm run build
@@ -107,28 +118,42 @@ npm run build
 
 ### 🔑 Multi-Chain Configuration
 
-**⚠️ SECURITY FIRST:**
-1. Copy `.env.template` to `.env`: `cp .env.template .env`
-2. Edit `.env` with your REAL API keys (never commit this file!)
-3. Your `.env` file is gitignored for security
+**⚠️ SECURITY FIRST - Manual Setup Required:**
+1. Create your own `.env` file locally (not in git)
+2. Add your REAL API keys (never commit this file!)
+3. The `.env` file is gitignored for security
 
-Configure your `.env` file:
+**Step 1: Get Alchemy API Key**
+- Go to https://alchemy.com and create free account
+- Create new app with "All EVM" networks enabled  
+- Copy your API key
+
+**Step 2: Create `.env` file locally:**
+```bash
+# Create your .env file (local only, never commit!)
+touch .env
+```
+
+**Step 3: Add this configuration to your `.env` file:**
 ```env
-# ⚠️ SECURITY: Get your free API key from https://alchemy.com
-ALCHEMY_API_KEY=YOUR_ALCHEMY_API_KEY_HERE
+# Replace YOUR_API_KEY with your real Alchemy API key
+ALCHEMY_API_KEY=YOUR_API_KEY
 
-# Multi-Chain RPC Endpoints (replace YOUR_ALCHEMY_API_KEY_HERE with your key)
-RPC_URL_ETHEREUM=https://eth-mainnet.g.alchemy.com/v2/YOUR_ALCHEMY_API_KEY_HERE
-RPC_URL_POLYGON=https://polygon-mainnet.g.alchemy.com/v2/YOUR_ALCHEMY_API_KEY_HERE
-RPC_URL_ARBITRUM=https://arb-mainnet.g.alchemy.com/v2/YOUR_ALCHEMY_API_KEY_HERE
-RPC_URL_BASE=https://base-mainnet.g.alchemy.com/v2/YOUR_ALCHEMY_API_KEY_HERE
-RPC_URL_OPTIMISM=https://opt-mainnet.g.alchemy.com/v2/YOUR_ALCHEMY_API_KEY_HERE
-# ... and 40+ more networks supported!
+# Multi-Chain RPC Endpoints (auto-configured)
+RPC_URL_ETHEREUM=https://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY
+RPC_URL_POLYGON=https://polygon-mainnet.g.alchemy.com/v2/YOUR_API_KEY
+RPC_URL_ARBITRUM=https://arb-mainnet.g.alchemy.com/v2/YOUR_API_KEY
+RPC_URL_BASE=https://base-mainnet.g.alchemy.com/v2/YOUR_API_KEY
+RPC_URL_OPTIMISM=https://opt-mainnet.g.alchemy.com/v2/YOUR_API_KEY
 
-# Optional Trading (⚠️ NEVER commit real private keys to git)
-# PRIVATE_KEY=your_private_key_here_KEEP_SECRET
+# Bot Configuration
 MIN_PROFIT_THRESHOLD=0.01
 MAX_SLIPPAGE=0.005
+GAS_PRICE_GWEI=20
+PORT=3000
+
+# Optional Trading (⚠️ NEVER use real private keys!)
+# PRIVATE_KEY=your_private_key_here_KEEP_SECRET
 ```
 
 ### Running the Bot
