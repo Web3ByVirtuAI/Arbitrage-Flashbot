@@ -512,6 +512,36 @@ export class APIServer {
       }
     });
 
+    // Moralis rate limit status endpoint
+    this.app.get('/api/moralis/rate-limit', async (req, res) => {
+      try {
+        if (this.isDemoMode) {
+          res.json({
+            optimizedForFreeTier: true,
+            nodeRequests: { current: 15, limit: 80, remaining: 65, percentUsed: 19 },
+            apiRequests: { current: 234, limit: 1200, remaining: 966, percentUsed: 20 },
+            supportedRpcChains: ['eth'],
+            message: 'Demo mode: Simulated Moralis free tier optimization',
+            mode: 'demo'
+          });
+        } else if (this.apiService) {
+          // Get the Moralis service from the API service
+          const moralisService = (this.apiService as any).moralisService;
+          if (moralisService) {
+            const rateLimitStatus = moralisService.getRateLimitStatus();
+            res.json(rateLimitStatus);
+          } else {
+            res.status(503).json({ error: 'Moralis service not available' });
+          }
+        } else {
+          res.status(503).json({ error: 'Moralis rate limit service not available' });
+        }
+      } catch (error) {
+        logger.error('Error getting Moralis rate limit status:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
     // Serve static files with cache control for development
     this.app.use(express.static('public', {
       setHeaders: (res, path, stat) => {

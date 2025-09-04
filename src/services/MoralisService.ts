@@ -9,16 +9,23 @@ export class MoralisService {
   private apiKey: string;
   private baseUrl = 'https://deep-index.moralis.io/api/v2.2';
   
-  // Dedicated RPC node endpoints 
+  // Dedicated RPC node endpoints - OPTIMIZED FOR FREE TIER (Ethereum only)
   private rpcNodes: { [key: string]: string[] } = {
     'eth': [
       'https://site1.moralis-nodes.com/eth/87db561a51774a28b7de52a40b774341',
       'https://site2.moralis-nodes.com/eth/87db561a51774a28b7de52a40b774341'
-    ],
-    'base': [
-      'https://site1.moralis-nodes.com/base/9eb3293592a7491f8645372f490f8708',
-      'https://site2.moralis-nodes.com/base/9eb3293592a7491f8645372f490f8708'
     ]
+    // Base RPC removed to optimize for Moralis free tier limits
+    // Free tier: 100 CUs/second Node Throughput, 1,500 CUs/second API Throughput
+  };
+
+  // Rate limiting for Moralis free tier
+  private rateLimiter = {
+    nodeRequests: [] as number[], // Track Extended RPC request timestamps
+    apiRequests: [] as number[],  // Track Web3 Data API request timestamps
+    nodeLimit: 80, // 80 requests/second for Extended RPC (buffer for 100 CU limit)
+    apiLimit: 1200, // 1200 requests/second for Web3 Data API (buffer for 1500 CU limit)
+    windowMs: 1000 // 1 second window
   };
 
   private cache: Map<string, { data: any, timestamp: number }> = new Map();
@@ -290,8 +297,8 @@ export class MoralisService {
         '0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9'  // AAVE
       ];
 
-      // Use only chains with RPC nodes for maximum speed
-      const rpcChains = Object.keys(this.rpcNodes); // ['eth', 'base']
+      // Use only Ethereum chain for Extended RPC (optimized for free tier)
+      const rpcChains = Object.keys(this.rpcNodes); // ['eth'] - Base removed for free tier optimization
       
       const chainData = await Promise.allSettled(
         rpcChains.map(chain => this.getMultiTokenPricesRPC(targetTokens, chain))
@@ -381,8 +388,8 @@ export class MoralisService {
         '0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9'  // AAVE
       ];
 
-      // Focus on main chains with good liquidity
-      const mainChains = ['eth', 'polygon', 'arbitrum', 'base', 'optimism'];
+      // Focus on main chains with good liquidity (Base removed for free tier optimization)
+      const mainChains = ['eth', 'polygon', 'arbitrum', 'optimism'];
       
       const chainData = await Promise.allSettled(
         mainChains.map(chain => this.getMultiTokenPrices(targetTokens, chain))
@@ -529,12 +536,61 @@ export class MoralisService {
 
 
   /**
-   * Make Extended RPC call using dedicated node endpoints
+   * Check if request is within rate limits for Moralis free tier
+   */
+  private canMakeRequest(type: 'node' | 'api'): boolean {
+    const now = Date.now();
+    const requests = type === 'node' ? this.rateLimiter.nodeRequests : this.rateLimiter.apiRequests;
+    const limit = type === 'node' ? this.rateLimiter.nodeLimit : this.rateLimiter.apiLimit;
+    
+    // Remove old requests outside the window
+    const cutoff = now - this.rateLimiter.windowMs;
+    const recentRequests = requests.filter(timestamp => timestamp > cutoff);
+    
+    // Update the array
+    if (type === 'node') {
+      this.rateLimiter.nodeRequests = recentRequests;
+    } else {
+      this.rateLimiter.apiRequests = recentRequests;
+    }
+    
+    return recentRequests.length < limit;
+  }
+
+  /**
+   * Record a request for rate limiting
+   */
+  private recordRequest(type: 'node' | 'api'): void {
+    const now = Date.now();
+    if (type === 'node') {
+      this.rateLimiter.nodeRequests.push(now);
+    } else {
+      this.rateLimiter.apiRequests.push(now);
+    }
+  }
+
+  /**
+   * Wait for rate limit reset if needed
+   */
+  private async waitForRateLimit(type: 'node' | 'api'): Promise<void> {
+    if (this.canMakeRequest(type)) return;
+    
+    const waitTime = 100; // 100ms wait
+    logger.debug(`Rate limit reached for ${type}, waiting ${waitTime}ms...`);
+    await new Promise(resolve => setTimeout(resolve, waitTime));
+  }
+
+  /**
+   * Make Extended RPC call using dedicated node endpoints with rate limiting
    */
   private async makeExtendedRpcCall(method: string, params: any, chain: string = 'eth'): Promise<any> {
     if (!this.rpcNodes[chain]) {
-      throw new Error(`No RPC nodes configured for chain: ${chain}`);
+      throw new Error(`No RPC nodes configured for chain: ${chain}. Only Ethereum is supported on free tier.`);
     }
+
+    // Check and wait for rate limit if needed
+    await this.waitForRateLimit('node');
+    this.recordRequest('node');
 
     const rpcPayload = {
       jsonrpc: '2.0',
@@ -577,9 +633,12 @@ export class MoralisService {
   }
 
   /**
-   * Make authenticated request to Moralis Web3 Data API
+   * Make authenticated request to Moralis Web3 Data API with rate limiting
    */
   private async makeRequest(endpoint: string, params: any = {}): Promise<any> {
+    // Check and wait for rate limit if needed
+    await this.waitForRateLimit('api');
+    this.recordRequest('api');
     const config = {
       method: 'GET',
       url: `${this.baseUrl}${endpoint}`,
@@ -635,14 +694,44 @@ export class MoralisService {
   }
 
   /**
-   * Get supported chains for multi-chain operations
+   * Get supported chains for multi-chain operations (optimized for free tier)
    */
   getSupportedChains(): string[] {
     return [
-      'eth', 'polygon', 'bsc', 'arbitrum', 'optimism', 'base', 'avalanche',
+      'eth', 'polygon', 'bsc', 'arbitrum', 'optimism', 'avalanche',
       'linea', 'blast', 'zksync', 'mantle', 'fantom', 'cronos', 'gnosis',
       'moonbeam', 'zetachain', 'flow', 'ronin', 'lisk', 'pulsechain'
+      // Base removed to optimize for Moralis free tier limits
     ];
+  }
+
+  /**
+   * Get current rate limit status
+   */
+  getRateLimitStatus(): any {
+    const now = Date.now();
+    const cutoff = now - this.rateLimiter.windowMs;
+    
+    const nodeRequests = this.rateLimiter.nodeRequests.filter(t => t > cutoff);
+    const apiRequests = this.rateLimiter.apiRequests.filter(t => t > cutoff);
+    
+    return {
+      nodeRequests: {
+        current: nodeRequests.length,
+        limit: this.rateLimiter.nodeLimit,
+        remaining: Math.max(0, this.rateLimiter.nodeLimit - nodeRequests.length),
+        percentUsed: Math.round((nodeRequests.length / this.rateLimiter.nodeLimit) * 100)
+      },
+      apiRequests: {
+        current: apiRequests.length,
+        limit: this.rateLimiter.apiLimit,
+        remaining: Math.max(0, this.rateLimiter.apiLimit - apiRequests.length),
+        percentUsed: Math.round((apiRequests.length / this.rateLimiter.apiLimit) * 100)
+      },
+      timestamp: now,
+      optimizedForFreeTier: true,
+      supportedRpcChains: Object.keys(this.rpcNodes) // ['eth']
+    };
   }
 
   // Helper methods

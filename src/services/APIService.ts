@@ -112,12 +112,13 @@ export class APIService {
         ...moralisFastOpportunities
       ].sort((a, b) => b.profitPercentage - a.profitPercentage);
       
-      // Get blockchain data (all sources)
-      const [blockchainData, multiChainData, gasOptimization, networkHealth] = await Promise.all([
+      // Get blockchain data (all sources) including Moralis rate limit status
+      const [blockchainData, multiChainData, gasOptimization, networkHealth, moralisRateLimit] = await Promise.all([
         this.priceService.getBlockchainData(),
         this.multiChainService.getMultiChainData(),
         this.metaMaskService.getGasOptimization(),
-        this.metaMaskService.getNetworkHealth()
+        this.metaMaskService.getNetworkHealth(),
+        Promise.resolve(this.moralisService.getRateLimitStatus())
       ]);
       
       // Update stats
@@ -131,6 +132,12 @@ export class APIService {
         gasOptimization: {
           networks: Array.from(gasOptimization.values()),
           healthStatus: networkHealth
+        },
+        moralis: {
+          rateLimit: moralisRateLimit,
+          freeTierOptimized: true,
+          supportedRpcChains: ['eth'], // Base removed for free tier optimization
+          message: 'Optimized for Moralis free tier: 100 CUs/sec Node, 1,500 CUs/sec API'
         },
         priceData: {
           basePrices: this.latestPrices.size,
