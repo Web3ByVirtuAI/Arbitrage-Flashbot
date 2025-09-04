@@ -12,6 +12,8 @@ import { AutoTrader } from '../core/AutoTrader';
 import { NETWORK_CONFIG } from '../config/constants';
 import { DemoDataProvider } from '../demo/DemoDataProvider';
 import { APIService } from '../services/APIService';
+import { FlashLoanProviderService } from '../services/FlashLoanProviderService';
+import { FlashLoanExecutionService } from '../services/FlashLoanExecutionService';
 
 export class APIServer {
   private app: express.Application;
@@ -26,6 +28,8 @@ export class APIServer {
   private autoTrader!: AutoTrader;
   private demoProvider!: DemoDataProvider;
   private apiService!: APIService;
+  private flashLoanProviderService!: FlashLoanProviderService;
+  private flashLoanExecutionService!: FlashLoanExecutionService;
   private isDemoMode: boolean = false;
 
   // Rate limiting
@@ -110,6 +114,10 @@ export class APIServer {
         // Initialize API service for real data
         this.apiService = new APIService();
         await this.apiService.start();
+        
+        // Initialize flash loan services
+        this.flashLoanProviderService = new FlashLoanProviderService();
+        this.flashLoanExecutionService = new FlashLoanExecutionService();
         
         if (privateKey) {
           // Full live trading mode
@@ -872,6 +880,361 @@ export class APIServer {
       }
     });
 
+    // Flash Loan Provider Management Endpoints
+    this.app.get('/api/flashloan/providers/:network?', async (req, res) => {
+      try {
+        const network = req.params.network || 'ethereum';
+        
+        if (this.isDemoMode) {
+          res.json({
+            providers: [
+              {
+                name: 'Aave V3 Ethereum',
+                protocol: 'aave-v3',
+                network: 'ethereum',
+                fees: 0.09,
+                maxAmount: '1000000',
+                supportedTokens: ['WETH', 'USDC', 'USDT', 'DAI'],
+                reliability: 98,
+                status: 'healthy'
+              },
+              {
+                name: 'Balancer V2 Ethereum',
+                protocol: 'balancer-v2',
+                network: 'ethereum',
+                fees: 0.0,
+                maxAmount: '10000000',
+                supportedTokens: ['WETH', 'USDC', 'USDT', 'DAI'],
+                reliability: 95,
+                status: 'healthy'
+              }
+            ],
+            network,
+            mode: 'demo'
+          });
+        } else if (this.flashLoanProviderService) {
+          const providers = await this.flashLoanProviderService.getAvailableProviders(network, 'WETH');
+          res.json({ providers, network, mode: 'live' });
+        } else {
+          res.status(503).json({ error: 'Flash loan provider service not available' });
+        }
+      } catch (error) {
+        logger.error('Error getting flash loan providers:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
+    this.app.post('/api/flashloan/quote', async (req, res) => {
+      try {
+        const { network = 'ethereum', token = 'WETH', amount } = req.body;
+        
+        if (!amount) {
+          return res.status(400).json({ error: 'Missing required parameter: amount' });
+        }
+        
+        if (this.isDemoMode) {
+          res.json({
+            quotes: [
+              {
+                provider: 'Aave V3 Ethereum',
+                amount,
+                token,
+                fee: '0.0009', // 0.09% of amount
+                gasEstimate: 350000,
+                totalCost: '0.007',
+                executionTime: 12,
+                success_rate: 98
+              },
+              {
+                provider: 'Balancer V2 Ethereum',
+                amount,
+                token,
+                fee: '0.0000',
+                gasEstimate: 280000,
+                totalCost: '0.0056',
+                executionTime: 12,
+                success_rate: 95
+              }
+            ],
+            network,
+            token,
+            mode: 'demo'
+          });
+        } else if (this.flashLoanProviderService) {
+          const quotes = await this.flashLoanProviderService.getFlashLoanQuotes(network, token, amount);
+          res.json({ quotes, network, token, mode: 'live' });
+        } else {
+          res.status(503).json({ error: 'Flash loan provider service not available' });
+        }
+      } catch (error) {
+        logger.error('Error getting flash loan quotes:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
+    this.app.get('/api/flashloan/providers/health/:network?', async (req, res) => {
+      try {
+        const network = req.params.network || 'ethereum';
+        
+        if (this.isDemoMode) {
+          res.json({
+            network,
+            providersStatus: {
+              'Aave V3 Ethereum': {
+                status: 'healthy',
+                liquidity: { available: true, estimatedMax: '1000000' },
+                lastChecked: new Date().toISOString(),
+                gasPrice: '20',
+                responseTime: 0
+              },
+              'Balancer V2 Ethereum': {
+                status: 'healthy',
+                liquidity: { available: true, estimatedMax: '10000000' },
+                lastChecked: new Date().toISOString(),
+                gasPrice: '20',
+                responseTime: 0
+              }
+            },
+            mode: 'demo'
+          });
+        } else if (this.flashLoanProviderService) {
+          const healthStatus = await this.flashLoanProviderService.monitorProviderHealth(network);
+          res.json({ network, providersStatus: healthStatus, mode: 'live' });
+        } else {
+          res.status(503).json({ error: 'Flash loan provider service not available' });
+        }
+      } catch (error) {
+        logger.error('Error checking flash loan provider health:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
+    this.app.get('/api/flashloan/stats', async (req, res) => {
+      try {
+        if (this.isDemoMode) {
+          res.json({
+            totalProviders: 5,
+            byProtocol: { 'aave-v3': 4, 'balancer-v2': 3, 'dydx': 1, 'pancakeswap': 1 },
+            byNetwork: { 'ethereum': 3, 'polygon': 1, 'arbitrum': 1, 'optimism': 1, 'bsc': 1 },
+            averageFees: '0.06',
+            supportedTokens: ['WETH', 'USDC', 'USDT', 'DAI', 'WBTC', 'LINK', 'AAVE'],
+            recommendedProviders: [
+              { name: 'Aave V3 Ethereum', protocol: 'aave-v3', network: 'ethereum', reliability: 98 },
+              { name: 'Aave V3 Polygon', protocol: 'aave-v3', network: 'polygon', reliability: 97 }
+            ],
+            mode: 'demo'
+          });
+        } else if (this.flashLoanProviderService) {
+          const stats = await this.flashLoanProviderService.getProviderStats();
+          res.json({ ...stats, mode: 'live' });
+        } else {
+          res.status(503).json({ error: 'Flash loan provider service not available' });
+        }
+      } catch (error) {
+        logger.error('Error getting flash loan provider stats:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
+    // Flash Loan Execution Management Endpoints
+    this.app.get('/api/execution/opportunities/:networks?', async (req, res) => {
+      try {
+        const networksParam = req.params.networks;
+        const networks = networksParam ? networksParam.split(',') : ['ethereum'];
+        
+        if (this.isDemoMode) {
+          res.json({
+            opportunities: [
+              {
+                id: 'demo_execution_1',
+                type: 'cross-dex',
+                network: 'ethereum',
+                flashLoanProvider: 'Aave V3 Ethereum',
+                borrowToken: 'WETH',
+                borrowAmount: '10.0',
+                profitEstimate: {
+                  grossProfit: '0.456',
+                  flashLoanFee: '0.009',
+                  gasCost: '0.042',
+                  netProfit: '0.405',
+                  profitPercentage: 4.05
+                },
+                riskLevel: 'low',
+                confidence: 92,
+                executionTime: 18,
+                validUntil: Date.now() + 180000
+              }
+            ],
+            networks,
+            mode: 'demo'
+          });
+        } else if (this.flashLoanExecutionService) {
+          const opportunities = await this.flashLoanExecutionService.identifyExecutableOpportunities(networks);
+          res.json({ opportunities, networks, mode: 'live' });
+        } else {
+          res.status(503).json({ error: 'Flash loan execution service not available' });
+        }
+      } catch (error) {
+        logger.error('Error identifying execution opportunities:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
+    this.app.post('/api/execution/simulate', async (req, res) => {
+      try {
+        const { opportunityId } = req.body;
+        
+        if (!opportunityId) {
+          return res.status(400).json({ error: 'Missing required parameter: opportunityId' });
+        }
+        
+        if (this.isDemoMode) {
+          res.json({
+            success: true,
+            simulatedProfit: '0.387',
+            gasEstimate: 320000,
+            risks: [],
+            recommendations: ['Execute within next 2 minutes for optimal profit'],
+            mode: 'demo'
+          });
+        } else if (this.flashLoanExecutionService) {
+          const simulation = await this.flashLoanExecutionService.simulateExecution(opportunityId);
+          res.json({ ...simulation, mode: 'live' });
+        } else {
+          res.status(503).json({ error: 'Flash loan execution service not available' });
+        }
+      } catch (error) {
+        logger.error('Error simulating execution:', error);
+        res.status(500).json({ error: error.message || 'Internal server error' });
+      }
+    });
+
+    this.app.post('/api/execution/prepare', async (req, res) => {
+      try {
+        const { opportunityId } = req.body;
+        
+        if (!opportunityId) {
+          return res.status(400).json({ error: 'Missing required parameter: opportunityId' });
+        }
+        
+        if (this.isDemoMode) {
+          res.json({
+            executionPlan: {
+              flashLoanProvider: 'Aave V3 Ethereum',
+              borrowAmount: '10.0',
+              expectedNetProfit: '0.387',
+              contractCalldata: '0x1234567890abcdef...',
+              safetyChecks: {
+                minProfitThreshold: 0.1,
+                maxSlippage: 0.02,
+                deadline: Date.now() + 300000
+              }
+            },
+            contractParams: {
+              flashLoanCalldata: '0x1234567890abcdef...',
+              borrowAmount: '10.0',
+              borrowToken: 'WETH',
+              expectedMinProfit: 0.1
+            },
+            status: 'PREPARED_FOR_EXECUTION',
+            mode: 'demo'
+          });
+        } else if (this.flashLoanExecutionService) {
+          const preparation = await this.flashLoanExecutionService.prepareExecution(opportunityId);
+          res.json({ ...preparation, status: 'PREPARED_FOR_EXECUTION', mode: 'live' });
+        } else {
+          res.status(503).json({ error: 'Flash loan execution service not available' });
+        }
+      } catch (error) {
+        logger.error('Error preparing execution:', error);
+        res.status(500).json({ error: error.message || 'Internal server error' });
+      }
+    });
+
+    this.app.get('/api/execution/stats', async (req, res) => {
+      try {
+        if (this.isDemoMode) {
+          res.json({
+            flashLoanProviders: {
+              totalProviders: 5,
+              byProtocol: { 'aave-v3': 4, 'balancer-v2': 3, 'dydx': 1 },
+              averageFees: '0.06',
+              recommendedProviders: [
+                { name: 'Aave V3 Ethereum', reliability: 98 },
+                { name: 'Balancer V2 Ethereum', reliability: 95 }
+              ]
+            },
+            riskParameters: {
+              maxBorrowAmount: '100',
+              minProfitThreshold: '0.01',
+              maxSlippage: 0.02,
+              maxGasPrice: '50'
+            },
+            executionHistory: {
+              totalExecutions: 0,
+              successRate: 0,
+              averageProfit: '0',
+              totalProfit: '0'
+            },
+            activeExecutions: 0,
+            supportedNetworks: ['ethereum', 'polygon', 'arbitrum', 'optimism', 'bsc'],
+            recommendedSetup: {
+              priority: 'Deploy arbitrage execution smart contract',
+              estimatedCost: '0.05-0.1 ETH for contract deployment',
+              timeToSetup: '30-60 minutes for full deployment'
+            },
+            mode: 'demo'
+          });
+        } else if (this.flashLoanExecutionService) {
+          const stats = await this.flashLoanExecutionService.getExecutionStats();
+          res.json({ ...stats, mode: 'live' });
+        } else {
+          res.status(503).json({ error: 'Flash loan execution service not available' });
+        }
+      } catch (error) {
+        logger.error('Error getting execution stats:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
+    this.app.get('/api/execution/monitor', async (req, res) => {
+      try {
+        if (this.isDemoMode) {
+          res.json({
+            activeExecutions: [],
+            pendingOpportunities: [
+              {
+                id: 'pending_demo_1',
+                type: 'cross-dex',
+                profitPercentage: 3.21,
+                validUntil: Date.now() + 120000
+              }
+            ],
+            systemHealth: {
+              flashLoanProviders: {
+                'Aave V3 Ethereum': { status: 'healthy' },
+                'Balancer V2 Ethereum': { status: 'healthy' }
+              },
+              gasConditions: {
+                current: '22',
+                threshold: '50',
+                recommendation: 'Monitor gas prices for optimal execution timing'
+              }
+            },
+            mode: 'demo'
+          });
+        } else if (this.flashLoanExecutionService) {
+          const monitor = await this.flashLoanExecutionService.monitorExecutions();
+          res.json({ ...monitor, mode: 'live' });
+        } else {
+          res.status(503).json({ error: 'Flash loan execution service not available' });
+        }
+      } catch (error) {
+        logger.error('Error monitoring executions:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
     // Serve static files with cache control for development
     this.app.use(express.static('public', {
       setHeaders: (res, path, stat) => {
@@ -911,7 +1274,14 @@ export class APIServer {
           'POST /api/stop - Stop auto trading',
           'POST /api/pause - Pause trading',
           'POST /api/resume - Resume trading',
-          'POST /api/emergency-stop - Emergency stop'
+          'POST /api/emergency-stop - Emergency stop',
+          'GET /api/flashloan/providers/:network - Flash loan providers',
+          'POST /api/flashloan/quote - Get flash loan quotes',
+          'GET /api/flashloan/providers/health/:network - Provider health check',
+          'GET /api/execution/opportunities/:networks - Executable opportunities',
+          'POST /api/execution/simulate - Simulate execution',
+          'POST /api/execution/prepare - Prepare execution',
+          'GET /api/execution/monitor - Monitor executions'
         ]
       });
     });
