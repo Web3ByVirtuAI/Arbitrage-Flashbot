@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flash Loan Arbitrage Bot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+</head>
+<body class="bg-gray-900 text-white">
+    <div class="min-h-screen">
+        <!-- Header -->
+        <header class="bg-gray-800 shadow-lg">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between items-center py-6">
+                    <h1 class="text-3xl font-bold text-blue-400">
+                        <i class="fas fa-bolt mr-2"></i>
+                        Flash Loan Arbitrage Bot
+                    </h1>
+                    <div id="status-indicator" class="flex items-center space-x-2">
+                        <div class="h-3 w-3 bg-yellow-500 rounded-full animate-pulse"></div>
+                        <span class="text-sm">Monitoring Mode</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <!-- Control Panel -->
+            <div class="bg-gray-800 rounded-lg shadow-xl p-6 mb-8">
+                <h2 class="text-xl font-semibold mb-4 text-blue-300">
+                    <i class="fas fa-cog mr-2"></i>
+                    Control Panel
+                </h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <button id="start-btn" onclick="startTrading()" 
+                            class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg font-medium transition-colors">
+                        <i class="fas fa-play mr-2"></i>Start Trading
+                    </button>
+                    <button id="pause-btn" onclick="pauseTrading()" 
+                            class="bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded-lg font-medium transition-colors">
+                        <i class="fas fa-pause mr-2"></i>Pause Trading
+                    </button>
+                    <button id="stop-btn" onclick="stopTrading()" 
+                            class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg font-medium transition-colors">
+                        <i class="fas fa-stop mr-2"></i>Stop Trading
+                    </button>
+                    <button onclick="refreshData()" 
+                            class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-medium transition-colors">
+                        <i class="fas fa-sync mr-2"></i>Refresh
+                    </button>
+                </div>
+            </div>
+
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div class="bg-gray-800 rounded-lg p-6">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-green-500 rounded-lg">
+                            <i class="fas fa-chart-line text-white"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm text-gray-400">Total Profit</p>
+                            <p id="total-profit" class="text-xl font-semibold text-green-400">$0.00</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-gray-800 rounded-lg p-6">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-blue-500 rounded-lg">
+                            <i class="fas fa-exchange-alt text-white"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm text-gray-400">Total Trades</p>
+                            <p id="total-trades" class="text-xl font-semibold">0</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-gray-800 rounded-lg p-6">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-purple-500 rounded-lg">
+                            <i class="fas fa-percentage text-white"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm text-gray-400">Success Rate</p>
+                            <p id="success-rate" class="text-xl font-semibold">0%</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-gray-800 rounded-lg p-6">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-orange-500 rounded-lg">
+                            <i class="fas fa-search text-white"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm text-gray-400">Opportunities</p>
+                            <p id="opportunities-count" class="text-xl font-semibold">0</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Opportunities Table -->
+            <div class="bg-gray-800 rounded-lg shadow-xl p-6 mb-8">
+                <h2 class="text-xl font-semibold mb-4 text-blue-300">
+                    <i class="fas fa-bullseye mr-2"></i>
+                    Current Opportunities
+                </h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full table-auto">
+                        <thead>
+                            <tr class="text-gray-400 border-b border-gray-700">
+                                <th class="text-left py-3 px-4">Token Pair</th>
+                                <th class="text-left py-3 px-4">DEX A → DEX B</th>
+                                <th class="text-left py-3 px-4">Profit %</th>
+                                <th class="text-left py-3 px-4">Expected Profit</th>
+                                <th class="text-left py-3 px-4">Age</th>
+                            </tr>
+                        </thead>
+                        <tbody id="opportunities-table" class="text-gray-300">
+                            <tr>
+                                <td colspan="5" class="text-center py-8 text-gray-500">
+                                    <i class="fas fa-spinner fa-spin mr-2"></i>
+                                    Scanning for opportunities...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Price Monitor -->
+            <div class="bg-gray-800 rounded-lg shadow-xl p-6">
+                <h2 class="text-xl font-semibold mb-4 text-blue-300">
+                    <i class="fas fa-chart-area mr-2"></i>
+                    Price Monitor
+                </h2>
+                <div id="price-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div class="text-center py-8 text-gray-500">
+                        <i class="fas fa-spinner fa-spin mr-2"></i>
+                        Loading price data...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isTrading = false;
+        
+        // Auto-refresh data every 5 seconds
+        setInterval(refreshData, 5000);
+        
+        // Initial load
+        refreshData();
+
+        async function startTrading() {
+            try {
+                const response = await axios.post('/api/start');
+                showNotification('Trading started!', 'success');
+                isTrading = true;
+                updateStatusIndicator();
+            } catch (error) {
+                showNotification('Failed to start trading: ' + (error.response?.data?.error || error.message), 'error');
+            }
+        }
+
+        async function pauseTrading() {
+            try {
+                const response = await axios.post('/api/pause');
+                showNotification('Trading paused!', 'warning');
+                updateStatusIndicator();
+            } catch (error) {
+                showNotification('Failed to pause trading: ' + (error.response?.data?.error || error.message), 'error');
+            }
+        }
+
+        async function stopTrading() {
+            try {
+                const response = await axios.post('/api/stop');
+                showNotification('Trading stopped!', 'info');
+                isTrading = false;
+                updateStatusIndicator();
+            } catch (error) {
+                showNotification('Failed to stop trading: ' + (error.response?.data?.error || error.message), 'error');
+            }
+        }
+
+        async function refreshData() {
+            try {
+                // Fetch all data in parallel
+                const [opportunities, prices, stats] = await Promise.all([
+                    axios.get('/api/opportunities'),
+                    axios.get('/api/prices'),
+                    axios.get('/api/stats')
+                ]);
+
+                updateOpportunities(opportunities.data.opportunities);
+                updatePrices(prices.data.prices);
+                updateStats(stats.data);
+            } catch (error) {
+                console.error('Failed to refresh data:', error);
+            }
+        }
+
+        function updateOpportunities(opportunities) {
+            const table = document.getElementById('opportunities-table');
+            const count = document.getElementById('opportunities-count');
+            
+            count.textContent = opportunities.length;
+
+            if (opportunities.length === 0) {
+                table.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="text-center py-8 text-gray-500">
+                            <i class="fas fa-search mr-2"></i>
+                            No profitable opportunities found
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            table.innerHTML = opportunities.map(opp => `
+                <tr class="border-b border-gray-700 hover:bg-gray-700">
+                    <td class="py-3 px-4 font-medium">${getTokenSymbol(opp.tokenA)} / ${getTokenSymbol(opp.tokenB)}</td>
+                    <td class="py-3 px-4">${opp.dexA.name} → ${opp.dexB.name}</td>
+                    <td class="py-3 px-4">
+                        <span class="text-green-400 font-semibold">${opp.profitPercentage.toFixed(4)}%</span>
+                    </td>
+                    <td class="py-3 px-4">${parseFloat(opp.expectedProfit).toFixed(6)} ETH</td>
+                    <td class="py-3 px-4 text-gray-400">${getTimeAgo(opp.timestamp)}</td>
+                </tr>
+            `).join('');
+        }
+
+        function updatePrices(prices) {
+            const grid = document.getElementById('price-grid');
+            
+            if (prices.length === 0) {
+                grid.innerHTML = `
+                    <div class="text-center py-8 text-gray-500 col-span-3">
+                        <i class="fas fa-chart-line mr-2"></i>
+                        No price data available
+                    </div>
+                `;
+                return;
+            }
+
+            grid.innerHTML = prices.map(price => `
+                <div class="bg-gray-700 rounded-lg p-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="font-semibold">${price.symbol}</h3>
+                        <span class="text-xs text-gray-400">${price.source}</span>
+                    </div>
+                    <div class="text-2xl font-bold mb-1">$${price.price.toFixed(4)}</div>
+                    <div class="text-sm ${price.change24h >= 0 ? 'text-green-400' : 'text-red-400'}">
+                        ${price.change24h >= 0 ? '+' : ''}${price.change24h.toFixed(2)}%
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateStats(stats) {
+            const trading = stats.trading || {};
+            
+            document.getElementById('total-profit').textContent = 
+                '$' + parseFloat(trading.totalProfit || '0').toFixed(4);
+            document.getElementById('total-trades').textContent = trading.totalTrades || 0;
+            
+            const successRate = trading.totalTrades > 0 
+                ? ((trading.successfulTrades || 0) / trading.totalTrades * 100).toFixed(1)
+                : '0';
+            document.getElementById('success-rate').textContent = successRate + '%';
+        }
+
+        function updateStatusIndicator() {
+            const indicator = document.getElementById('status-indicator');
+            if (isTrading) {
+                indicator.innerHTML = `
+                    <div class="h-3 w-3 bg-green-500 rounded-full animate-pulse"></div>
+                    <span class="text-sm">Trading Active</span>
+                `;
+            } else {
+                indicator.innerHTML = `
+                    <div class="h-3 w-3 bg-yellow-500 rounded-full animate-pulse"></div>
+                    <span class="text-sm">Monitoring Mode</span>
+                `;
+            }
+        }
+
+        function getTokenSymbol(address) {
+            const tokenMap = {
+                '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2': 'WETH',
+                '0xA0b86a33E6417c13C812C72De3FE58dD2C5d1D65': 'USDC',
+                '0xdAC17F958D2ee523a2206206994597C13D831ec7': 'USDT',
+                '0x6B175474E89094C44Da98b954EedeAC495271d0F': 'DAI',
+                '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599': 'WBTC'
+            };
+            return tokenMap[address] || address.slice(0, 8) + '...';
+        }
+
+        function getTimeAgo(timestamp) {
+            const seconds = Math.floor((Date.now() - timestamp) / 1000);
+            if (seconds < 60) return seconds + 's ago';
+            const minutes = Math.floor(seconds / 60);
+            if (minutes < 60) return minutes + 'm ago';
+            const hours = Math.floor(minutes / 60);
+            return hours + 'h ago';
+        }
+
+        function showNotification(message, type) {
+            // Simple notification system - could be enhanced with a proper toast library
+            const colors = {
+                success: 'bg-green-500',
+                error: 'bg-red-500',
+                warning: 'bg-yellow-500',
+                info: 'bg-blue-500'
+            };
+            
+            const notification = document.createElement('div');
+            notification.className = `fixed top-4 right-4 ${colors[type]} text-white px-6 py-3 rounded-lg shadow-lg z-50`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
