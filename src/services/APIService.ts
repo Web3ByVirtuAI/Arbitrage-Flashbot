@@ -1,0 +1,260 @@
+import { PriceService } from './PriceService';
+import { MultiChainPriceService } from './MultiChainPriceService';
+import { logger } from '../utils/logger';
+import { PriceData } from '../core/PriceMonitor';
+import { ArbitrageOpportunity } from '../core/OpportunityFinder';
+
+/**
+ * Main API service coordinator
+ * Integrates all external services and provides unified interface
+ */
+export class APIService {
+  private priceService: PriceService;
+  private multiChainService: MultiChainPriceService;
+  private isRunning: boolean = false;
+  private updateInterval: NodeJS.Timeout | null = null;
+  private readonly UPDATE_FREQUENCY = 5000; // 5 seconds
+
+  // Latest data cache
+  private latestPrices: Map<string, PriceData> = new Map();
+  private latestOpportunities: ArbitrageOpportunity[] = [];
+  private latestStats: any = {};
+
+  constructor() {
+    this.priceService = new PriceService();
+    this.multiChainService = new MultiChainPriceService();
+  }
+
+  /**
+   * Start the API service
+   */
+  async start(): Promise<void> {
+    if (this.isRunning) {
+      logger.warn('API service is already running');
+      return;
+    }
+
+    try {
+      logger.info('🚀 Starting API service with real market data...');
+      
+      // Initial data fetch
+      await this.updateAllData();
+      
+      this.isRunning = true;
+      
+      // Set up periodic updates
+      this.updateInterval = setInterval(async () => {
+        try {
+          await this.updateAllData();
+        } catch (error) {
+          logger.error('Error during periodic update:', error);
+        }
+      }, this.UPDATE_FREQUENCY);
+
+      logger.success('✅ API service started successfully');
+    } catch (error) {
+      logger.error('Failed to start API service:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Stop the API service
+   */
+  stop(): void {
+    if (!this.isRunning) {
+      return;
+    }
+
+    if (this.updateInterval) {
+      clearInterval(this.updateInterval);
+      this.updateInterval = null;
+    }
+
+    this.isRunning = false;
+    logger.info('⏹️  API service stopped');
+  }
+
+  /**
+   * Update all data from external APIs
+   */
+  private async updateAllData(): Promise<void> {
+    try {
+      logger.debug('🔄 Updating market data...');
+
+      // Fetch all price data
+      const priceData = await this.priceService.getAllPrices();
+      
+      // Update latest prices from base data
+      this.latestPrices = priceData.basePrices;
+      
+      // Find arbitrage opportunities (both single-chain and cross-chain)
+      const [singleChainOpportunities, crossChainOpportunities] = await Promise.all([
+        this.priceService.findArbitrageOpportunities(),
+        this.multiChainService.findCrossChainOpportunities()
+      ]);
+      
+      // Combine opportunities, prioritizing by profitability
+      this.latestOpportunities = [
+        ...singleChainOpportunities,
+        ...crossChainOpportunities
+      ].sort((a, b) => b.profitPercentage - a.profitPercentage);
+      
+      // Get blockchain data (both single-chain and multi-chain)
+      const [blockchainData, multiChainData] = await Promise.all([
+        this.priceService.getBlockchainData(),
+        this.multiChainService.getMultiChainData()
+      ]);
+      
+      // Update stats
+      this.latestStats = {
+        blockchain: blockchainData,
+        multiChain: {
+          supportedNetworks: this.multiChainService.getSupportedNetworks(),
+          activeProviders: this.multiChainService.getProviderCount(),
+          chainData: Array.from(multiChainData.values())
+        },
+        priceData: {
+          basePrices: this.latestPrices.size,
+          uniswapV2Pairs: priceData.uniswapV2.size,
+          uniswapV3Pools: priceData.uniswapV3.size,
+          sushiSwapPairs: priceData.sushiSwap.size
+        },
+        opportunities: {
+          total: this.latestOpportunities.length,
+          crossChain: this.latestOpportunities.filter(op => op.type === 'cross-chain').length,
+          singleChain: this.latestOpportunities.filter(op => !op.type || op.type !== 'cross-chain').length
+        },
+        lastUpdate: Date.now(),
+        mode: 'multi-chain-live'
+      };
+
+      logger.debug(`✅ Data updated: ${this.latestPrices.size} prices, ${this.latestOpportunities.length} opportunities`);
+    } catch (error) {
+      logger.error('Error updating market data:', error);
+    }
+  }
+
+  /**
+   * Get current prices
+   */
+  getCurrentPrices(): Map<string, PriceData> {
+    return new Map(this.latestPrices);
+  }
+
+  /**
+   * Get current arbitrage opportunities
+   */
+  getCurrentOpportunities(): ArbitrageOpportunity[] {
+    return [...this.latestOpportunities];
+  }
+
+  /**
+   * Get service statistics
+   */
+  getStats(): any {
+    return {
+      ...this.latestStats,
+      isRunning: this.isRunning,
+      updateFrequency: this.UPDATE_FREQUENCY,
+      uptime: this.isRunning ? Date.now() - (this.latestStats.lastUpdate || Date.now()) : 0
+    };
+  }
+
+  /**
+   * Get trading statistics (for compatibility with demo mode)
+   */
+  getTradingStats(): any {
+    return {
+      totalTrades: 0,
+      successfulTrades: 0, 
+      failedTrades: 0,
+      totalProfit: '0.0000',
+      averageProfit: '0.0000',
+      uptime: this.isRunning ? Date.now() - (this.latestStats.lastUpdate || Date.now()) : 0,
+      mode: 'live'
+    };
+  }
+
+  /**
+   * Get risk statistics (for compatibility with demo mode)
+   */
+  getRiskStats(): any {
+    return {
+      dailyTradeCount: 0,
+      dailyProfit: 0,
+      consecutiveFailures: 0,
+      riskLevel: 'low'
+    };
+  }
+
+  /**
+   * Get wallet balance (mock for now, would need real wallet integration)
+   */
+  async getWalletBalance(): Promise<string> {
+    try {
+      // TODO: Implement real wallet balance checking
+      // For now, return mock balance
+      return '5.2451';
+    } catch (error) {
+      logger.error('Error getting wallet balance:', error);
+      return '0.0000';
+    }
+  }
+
+  /**
+   * Health check
+   */
+  async isHealthy(): Promise<boolean> {
+    try {
+      const isServiceHealthy = await this.priceService.isHealthy();
+      return this.isRunning && isServiceHealthy;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Get detailed system health
+   */
+  async getSystemHealth(): Promise<any> {
+    try {
+      const priceServiceHealth = await this.priceService.isHealthy();
+      const lastUpdateAge = Date.now() - (this.latestStats.lastUpdate || 0);
+      
+      return {
+        overall: this.isRunning && priceServiceHealth && lastUpdateAge < 60000, // 1 minute
+        services: {
+          apiService: this.isRunning,
+          priceService: priceServiceHealth,
+          dataFreshness: lastUpdateAge < 60000
+        },
+        dataAge: lastUpdateAge,
+        lastUpdate: this.latestStats.lastUpdate,
+        opportunitiesCount: this.latestOpportunities.length,
+        pricesCount: this.latestPrices.size
+      };
+    } catch (error) {
+      logger.error('Error checking system health:', error);
+      return {
+        overall: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  /**
+   * Force data refresh
+   */
+  async refresh(): Promise<void> {
+    logger.info('🔄 Forcing data refresh...');
+    await this.updateAllData();
+  }
+
+  /**
+   * Get supported tokens
+   */
+  getSupportedTokens(): string[] {
+    return ['WETH', 'WBTC', 'LINK', 'UNI', 'AAVE'];
+  }
+}

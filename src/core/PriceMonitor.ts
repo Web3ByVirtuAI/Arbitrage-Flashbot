@@ -10,6 +10,7 @@ export interface PriceData {
   volume24h: number;
   timestamp: number;
   source: string;
+  chain?: string; // Optional chain identifier for multi-chain support
 }
 
 export interface WebSocketPriceUpdate {

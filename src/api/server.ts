@@ -11,6 +11,7 @@ import { PriceMonitor } from '../core/PriceMonitor';
 import { AutoTrader } from '../core/AutoTrader';
 import { NETWORK_CONFIG } from '../config/constants';
 import { DemoDataProvider } from '../demo/DemoDataProvider';
+import { APIService } from '../services/APIService';
 
 export class APIServer {
   private app: express.Application;
@@ -24,6 +25,7 @@ export class APIServer {
   private priceMonitor!: PriceMonitor;
   private autoTrader!: AutoTrader;
   private demoProvider!: DemoDataProvider;
+  private apiService!: APIService;
   private isDemoMode: boolean = false;
 
   // Rate limiting
@@ -88,27 +90,42 @@ export class APIServer {
       // Initialize provider
       this.provider = new ethers.JsonRpcProvider(NETWORK_CONFIG.ETHEREUM.rpcUrl);
       
-      // Check if we should run in demo mode
+      // Check if we should run in demo mode vs live API mode
       const privateKey = process.env.PRIVATE_KEY;
-      this.isDemoMode = !privateKey;
+      const alchemyApiKey = process.env.ALCHEMY_API_KEY;
+      
+      this.isDemoMode = !alchemyApiKey;
       
       if (this.isDemoMode) {
         // Demo mode - use simulated data
         logger.info('🎯 Running in DEMO mode with simulated data');
+        logger.info('💡 To use real APIs: Set ALCHEMY_API_KEY in .env');
         this.demoProvider = new DemoDataProvider();
         this.demoProvider.start();
       } else {
-        // Live mode - initialize real components
-        logger.info('⚡ Running in LIVE mode with real connections');
-        this.opportunityFinder = new OpportunityFinder(this.provider);
-        this.priceMonitor = new PriceMonitor();
-        this.flashLoanExecutor = new FlashLoanExecutor(this.provider, privateKey!);
+        // Live API mode - use real market data
+        logger.info('⚡ Running in LIVE API mode with real market data');
+        logger.info(`🔗 Using Alchemy API: ${alchemyApiKey?.substring(0, 8)}...`);
         
-        this.autoTrader = new AutoTrader(
-          this.opportunityFinder,
-          this.flashLoanExecutor,
-          this.priceMonitor
-        );
+        // Initialize API service for real data
+        this.apiService = new APIService();
+        await this.apiService.start();
+        
+        if (privateKey) {
+          // Full live trading mode
+          logger.info('💰 Trading enabled with private key');
+          this.opportunityFinder = new OpportunityFinder(this.provider);
+          this.priceMonitor = new PriceMonitor();
+          this.flashLoanExecutor = new FlashLoanExecutor(this.provider, privateKey);
+          
+          this.autoTrader = new AutoTrader(
+            this.opportunityFinder,
+            this.flashLoanExecutor,
+            this.priceMonitor
+          );
+        } else {
+          logger.info('📊 API-only mode (no trading without PRIVATE_KEY)');
+        }
       }
       
       logger.info('API server components initialized');
@@ -120,14 +137,16 @@ export class APIServer {
 
   private setupRoutes(): void {
     // Health check
-    this.app.get('/health', (req, res) => {
+    this.app.get('/health', async (req, res) => {
       const health = {
         status: 'OK',
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
         components: this.isDemoMode 
           ? { mode: 'demo', demoProvider: this.demoProvider?.isHealthy() || false }
-          : (this.autoTrader?.getSystemHealth() || {})
+          : this.apiService 
+            ? await this.apiService.getSystemHealth()
+            : (this.autoTrader?.getSystemHealth() || { mode: 'live_api' })
       };
       res.json(health);
     });
@@ -137,7 +156,9 @@ export class APIServer {
       try {
         const opportunities = this.isDemoMode 
           ? this.demoProvider.getOpportunities()
-          : (this.opportunityFinder?.getOpportunities() || []);
+          : this.apiService 
+            ? this.apiService.getCurrentOpportunities()
+            : (this.opportunityFinder?.getOpportunities() || []);
         res.json({ opportunities });
       } catch (error) {
         logger.error('Error fetching opportunities:', error);
@@ -149,7 +170,9 @@ export class APIServer {
       try {
         const prices = this.isDemoMode
           ? this.demoProvider.getPrices()
-          : (this.priceMonitor?.getAllPrices() || new Map());
+          : this.apiService 
+            ? this.apiService.getCurrentPrices()
+            : (this.priceMonitor?.getAllPrices() || new Map());
         const priceArray = Array.from(prices.entries()).map(([, data]) => data);
         res.json({ prices: priceArray });
       } catch (error) {
@@ -180,8 +203,23 @@ export class APIServer {
             priceMonitor: this.demoProvider.getStats(),
             mode: 'demo'
           });
+        } else if (this.apiService) {
+          // Live API mode stats
+          const apiStats = this.apiService.getStats();
+          const tradingStats = this.apiService.getTradingStats();
+          const riskStats = this.apiService.getRiskStats();
+          const balance = await this.apiService.getWalletBalance();
+          
+          res.json({
+            trading: tradingStats,
+            risk: riskStats,
+            walletBalance: balance,
+            priceMonitor: apiStats,
+            blockchain: apiStats.blockchain,
+            mode: 'live_api'
+          });
         } else {
-          // Live mode stats
+          // Legacy live mode stats
           const stats = this.autoTrader?.getStats() || {};
           const riskStats = this.autoTrader?.getRiskStats() || {};
           const balance = await this.flashLoanExecutor?.getWalletBalance() || '0';

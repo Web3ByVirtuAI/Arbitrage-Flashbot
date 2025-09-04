@@ -22,6 +22,8 @@ export interface ArbitrageOpportunity {
   gasEstimate: string;
   timestamp: number;
   priority: number;
+  type?: string; // Optional type field for cross-chain vs single-chain
+  chain?: string; // Optional chain identifier
 }
 
 export class OpportunityFinder {

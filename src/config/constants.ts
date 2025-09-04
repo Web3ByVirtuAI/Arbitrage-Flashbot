@@ -1,27 +1,95 @@
 export const NETWORK_CONFIG = {
+  // Layer 1 Networks
   ETHEREUM: {
+    name: 'Ethereum',
     chainId: 1,
-    rpcUrl: process.env.RPC_URL_MAINNET || 'https://eth-mainnet.alchemyapi.io/v2/YOUR_API_KEY',
+    rpcUrl: process.env.RPC_URL_ETHEREUM || 'https://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY',
     blockTime: 12000, // 12 seconds
     gasLimit: 500000,
+    nativeCurrency: 'ETH',
+    priority: 1, // Highest priority
+    dexSupport: ['Uniswap V2', 'Uniswap V3', 'SushiSwap', '1inch']
   },
   POLYGON: {
+    name: 'Polygon',
     chainId: 137,
-    rpcUrl: process.env.RPC_URL_POLYGON || 'https://polygon-mainnet.alchemyapi.io/v2/YOUR_API_KEY',
+    rpcUrl: process.env.RPC_URL_POLYGON || 'https://polygon-mainnet.g.alchemy.com/v2/YOUR_API_KEY',
     blockTime: 2000, // 2 seconds
     gasLimit: 500000,
-  },
-  BSC: {
-    chainId: 56,
-    rpcUrl: process.env.RPC_URL_BSC || 'https://bsc-dataseed.binance.org/',
-    blockTime: 3000, // 3 seconds
-    gasLimit: 500000,
+    nativeCurrency: 'MATIC',
+    priority: 2,
+    dexSupport: ['QuickSwap', 'SushiSwap', 'Uniswap V3']
   },
   ARBITRUM: {
+    name: 'Arbitrum One',
     chainId: 42161,
-    rpcUrl: process.env.RPC_URL_ARBITRUM || 'https://arb1.arbitrum.io/rpc',
+    rpcUrl: process.env.RPC_URL_ARBITRUM || 'https://arb-mainnet.g.alchemy.com/v2/YOUR_API_KEY',
     blockTime: 1000, // 1 second
     gasLimit: 1000000,
+    nativeCurrency: 'ETH',
+    priority: 3,
+    dexSupport: ['Uniswap V3', 'SushiSwap', 'Camelot']
+  },
+  BASE: {
+    name: 'Base',
+    chainId: 8453,
+    rpcUrl: process.env.RPC_URL_BASE || 'https://base-mainnet.g.alchemy.com/v2/YOUR_API_KEY',
+    blockTime: 2000, // 2 seconds
+    gasLimit: 500000,
+    nativeCurrency: 'ETH',
+    priority: 4,
+    dexSupport: ['Uniswap V3', 'Aerodrome', 'SushiSwap']
+  },
+  OPTIMISM: {
+    name: 'OP Mainnet',
+    chainId: 10,
+    rpcUrl: process.env.RPC_URL_OPTIMISM || 'https://opt-mainnet.g.alchemy.com/v2/YOUR_API_KEY',
+    blockTime: 2000, // 2 seconds
+    gasLimit: 500000,
+    nativeCurrency: 'ETH',
+    priority: 5,
+    dexSupport: ['Uniswap V3', 'Velodrome', 'SushiSwap']
+  },
+  BNB: {
+    name: 'BNB Smart Chain',
+    chainId: 56,
+    rpcUrl: process.env.RPC_URL_BNB || 'https://bnb-mainnet.g.alchemy.com/v2/YOUR_API_KEY',
+    blockTime: 3000, // 3 seconds
+    gasLimit: 500000,
+    nativeCurrency: 'BNB',
+    priority: 6,
+    dexSupport: ['PancakeSwap V3', 'PancakeSwap V2', 'Biswap']
+  },
+  AVALANCHE: {
+    name: 'Avalanche',
+    chainId: 43114,
+    rpcUrl: process.env.RPC_URL_AVALANCHE || 'https://avax-mainnet.g.alchemy.com/v2/YOUR_API_KEY',
+    blockTime: 2000, // 2 seconds
+    gasLimit: 500000,
+    nativeCurrency: 'AVAX',
+    priority: 7,
+    dexSupport: ['Trader Joe', 'Pangolin', 'SushiSwap']
+  },
+  // Emerging High-Potential Networks
+  UNICHAIN: {
+    name: 'Unichain',
+    chainId: 1301,
+    rpcUrl: process.env.RPC_URL_UNICHAIN || 'https://unichain-mainnet.g.alchemy.com/v2/YOUR_API_KEY',
+    blockTime: 1000, // 1 second
+    gasLimit: 1000000,
+    nativeCurrency: 'ETH',
+    priority: 8,
+    dexSupport: ['Uniswap V4', 'Uniswap V3']
+  },
+  BLAST: {
+    name: 'Blast',
+    chainId: 81457,
+    rpcUrl: process.env.RPC_URL_BLAST || 'https://blast-mainnet.g.alchemy.com/v2/YOUR_API_KEY',
+    blockTime: 2000, // 2 seconds
+    gasLimit: 500000,
+    nativeCurrency: 'ETH',
+    priority: 9,
+    dexSupport: ['Thruster', 'Fenix', 'BlasterSwap']
   }
 };
 
