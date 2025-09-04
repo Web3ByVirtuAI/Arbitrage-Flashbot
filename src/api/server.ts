@@ -647,6 +647,231 @@ export class APIServer {
       }
     });
 
+    // Advanced DEX monitoring endpoints
+    this.app.get('/api/dex/curve/:network?', async (req, res) => {
+      try {
+        const network = (req.params.network as 'ethereum' | 'arbitrum' | 'polygon') || 'ethereum';
+        
+        if (this.isDemoMode) {
+          res.json({
+            pools: [
+              {
+                id: '0x06364f10b501e868329afbc005b3492902d6c763',
+                name: '3pool',
+                symbol: '3Crv',
+                totalLiquidity: '45000000',
+                virtualPrice: '1.0234',
+                coins: [
+                  { symbol: 'DAI', balance: '15000000' },
+                  { symbol: 'USDC', balance: '15000000' },
+                  { symbol: 'USDT', balance: '15000000' }
+                ]
+              }
+            ],
+            network,
+            mode: 'demo'
+          });
+        } else if (this.apiService) {
+          const advancedDEXService = (this.apiService as any).advancedDEXService;
+          if (advancedDEXService) {
+            const pools = await advancedDEXService.getCurvePools(network);
+            res.json({ pools, network, mode: 'live' });
+          } else {
+            res.status(503).json({ error: 'Curve service not available' });
+          }
+        } else {
+          res.status(503).json({ error: 'Advanced DEX service not available' });
+        }
+      } catch (error) {
+        logger.error('Error getting Curve pools:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
+    this.app.get('/api/dex/balancer/:network?', async (req, res) => {
+      try {
+        const network = (req.params.network as 'ethereum' | 'polygon' | 'arbitrum' | 'optimism' | 'base') || 'ethereum';
+        
+        if (this.isDemoMode) {
+          res.json({
+            pools: [
+              {
+                id: '0x5c6ee304399dbdb9c8ef030ab642b10820db8f56000200000000000000000014',
+                address: '0x5c6Ee304399DBdB9C8Ef030aB642B10820DB8F56',
+                poolType: 'Weighted',
+                totalLiquidity: '12500000',
+                tokens: [
+                  { symbol: 'BAL', balance: '8000000', weight: '0.8' },
+                  { symbol: 'WETH', balance: '2500', weight: '0.2' }
+                ]
+              }
+            ],
+            network,
+            mode: 'demo'
+          });
+        } else if (this.apiService) {
+          const advancedDEXService = (this.apiService as any).advancedDEXService;
+          if (advancedDEXService) {
+            const pools = await advancedDEXService.getBalancerPools(network);
+            res.json({ pools, network, mode: 'live' });
+          } else {
+            res.status(503).json({ error: 'Balancer service not available' });
+          }
+        } else {
+          res.status(503).json({ error: 'Advanced DEX service not available' });
+        }
+      } catch (error) {
+        logger.error('Error getting Balancer pools:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
+    this.app.get('/api/dex/1inch-quote', async (req, res) => {
+      try {
+        const { fromToken, toTokens, amount, network = 'ethereum' } = req.query;
+        
+        if (!fromToken || !toTokens || !amount) {
+          return res.status(400).json({ error: 'Missing required parameters: fromToken, toTokens, amount' });
+        }
+        
+        if (this.isDemoMode) {
+          res.json({
+            quotes: [
+              {
+                fromToken,
+                toToken: Array.isArray(toTokens) ? toTokens[0] : toTokens,
+                srcAmount: amount,
+                dstAmount: '2845.123456',
+                protocols: ['Uniswap_V3', 'SushiSwap'],
+                estimatedGas: '180000',
+                network
+              }
+            ],
+            mode: 'demo'
+          });
+        } else if (this.apiService) {
+          const advancedDEXService = (this.apiService as any).advancedDEXService;
+          if (advancedDEXService) {
+            const tokenList = Array.isArray(toTokens) ? toTokens as string[] : [toTokens as string];
+            const quotes = await advancedDEXService.getOneInchQuotes(
+              fromToken as string,
+              tokenList,
+              amount as string,
+              network as any
+            );
+            res.json({ quotes, network, mode: 'live' });
+          } else {
+            res.status(503).json({ error: '1inch service not available' });
+          }
+        } else {
+          res.status(503).json({ error: 'Advanced DEX service not available' });
+        }
+      } catch (error) {
+        logger.error('Error getting 1inch quotes:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
+    this.app.get('/api/dex/pancakeswap/:network?', async (req, res) => {
+      try {
+        const network = (req.params.network as 'bsc' | 'ethereum') || 'bsc';
+        
+        if (this.isDemoMode) {
+          res.json({
+            pools: [
+              {
+                id: '0x0ed7e52944161450477ee417de9cd3a859b14fd0',
+                token0: { symbol: 'WBNB', id: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c' },
+                token1: { symbol: 'BUSD', id: '0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56' },
+                reserve0: '450123.456',
+                reserve1: '125000000.789',
+                volumeUSD: '15000000'
+              }
+            ],
+            network,
+            mode: 'demo'
+          });
+        } else if (this.apiService) {
+          const advancedDEXService = (this.apiService as any).advancedDEXService;
+          if (advancedDEXService) {
+            const pools = await advancedDEXService.getPancakeSwapPools(network);
+            res.json({ pools, network, mode: 'live' });
+          } else {
+            res.status(503).json({ error: 'PancakeSwap service not available' });
+          }
+        } else {
+          res.status(503).json({ error: 'Advanced DEX service not available' });
+        }
+      } catch (error) {
+        logger.error('Error getting PancakeSwap pools:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
+    this.app.get('/api/dex/cross-opportunities', async (req, res) => {
+      try {
+        if (this.isDemoMode) {
+          res.json({
+            opportunities: [
+              {
+                id: 'cross-dex-demo-1',
+                type: 'cross-dex',
+                tokenPair: 'WETH-USDC',
+                profitPercentage: 2.34,
+                buyFrom: { source: 'Curve Finance (ethereum)', price: 2845.12 },
+                sellTo: { source: 'Balancer V2 (arbitrum)', price: 2911.78 },
+                crossChain: true
+              }
+            ],
+            mode: 'demo'
+          });
+        } else if (this.apiService) {
+          const advancedDEXService = (this.apiService as any).advancedDEXService;
+          if (advancedDEXService) {
+            const opportunities = await advancedDEXService.findCrossDEXArbitrageOpportunities();
+            res.json({ opportunities, mode: 'live' });
+          } else {
+            res.status(503).json({ error: 'Cross-DEX arbitrage service not available' });
+          }
+        } else {
+          res.status(503).json({ error: 'Advanced DEX service not available' });
+        }
+      } catch (error) {
+        logger.error('Error getting cross-DEX opportunities:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
+    this.app.get('/api/dex/status', async (req, res) => {
+      try {
+        if (this.isDemoMode) {
+          res.json({
+            supported: {
+              curve: { networks: ['ethereum', 'arbitrum', 'polygon'], status: 'active' },
+              balancer: { networks: ['ethereum', 'polygon', 'arbitrum', 'optimism', 'base'], status: 'active' },
+              oneInch: { networks: ['ethereum', 'polygon', 'arbitrum', 'optimism', 'bsc'], status: 'rate-limited' },
+              pancakeSwap: { networks: ['bsc', 'ethereum'], status: 'active' }
+            },
+            totalNetworksSupported: 8,
+            mode: 'demo'
+          });
+        } else if (this.apiService) {
+          const advancedDEXService = (this.apiService as any).advancedDEXService;
+          if (advancedDEXService) {
+            const status = advancedDEXService.getDEXStatus();
+            res.json({ ...status, mode: 'live' });
+          } else {
+            res.status(503).json({ error: 'DEX status service not available' });
+          }
+        } else {
+          res.status(503).json({ error: 'Advanced DEX service not available' });
+        }
+      } catch (error) {
+        logger.error('Error getting DEX status:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
     // Serve static files with cache control for development
     this.app.use(express.static('public', {
       setHeaders: (res, path, stat) => {

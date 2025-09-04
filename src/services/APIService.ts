@@ -2,6 +2,7 @@ import { PriceService } from './PriceService';
 import { MultiChainPriceService } from './MultiChainPriceService';
 import { MoralisService } from './MoralisService';
 import { MetaMaskService } from './MetaMaskService';
+import { AdvancedDEXService } from './AdvancedDEXService';
 import { logger } from '../utils/logger';
 import { PriceData } from '../core/PriceMonitor';
 import { ArbitrageOpportunity } from '../core/OpportunityFinder';
@@ -15,6 +16,7 @@ export class APIService {
   private multiChainService: MultiChainPriceService;
   private moralisService: MoralisService;
   public metaMaskService: MetaMaskService;
+  private advancedDEXService: AdvancedDEXService;
   private isRunning: boolean = false;
   private updateInterval: NodeJS.Timeout | null = null;
   private readonly UPDATE_FREQUENCY = 5000; // 5 seconds
@@ -29,6 +31,7 @@ export class APIService {
     this.multiChainService = new MultiChainPriceService();
     this.moralisService = new MoralisService();
     this.metaMaskService = new MetaMaskService();
+    this.advancedDEXService = new AdvancedDEXService();
   }
 
   /**
@@ -94,13 +97,14 @@ export class APIService {
       // Update latest prices from base data
       this.latestPrices = priceData.basePrices;
       
-      // Find arbitrage opportunities (all sources)
-      const [singleChainOpportunities, crossChainOpportunities, moralisOpportunities, moralisCrossChainOpportunities, moralisFastOpportunities] = await Promise.all([
+      // Find arbitrage opportunities (all sources including advanced DEXes)
+      const [singleChainOpportunities, crossChainOpportunities, moralisOpportunities, moralisCrossChainOpportunities, moralisFastOpportunities, crossDEXOpportunities] = await Promise.all([
         this.priceService.findArbitrageOpportunities(),
         this.multiChainService.findCrossChainOpportunities(),
         this.moralisService.findMoralisArbitrageOpportunities(),
         this.moralisService.findCrossChainArbitrageOpportunities(),
-        this.moralisService.findFastArbitrageOpportunities()
+        this.moralisService.findFastArbitrageOpportunities(),
+        this.advancedDEXService.findCrossDEXArbitrageOpportunities()
       ]);
       
       // Combine opportunities, prioritizing by profitability
@@ -109,16 +113,18 @@ export class APIService {
         ...crossChainOpportunities,
         ...moralisOpportunities,
         ...moralisCrossChainOpportunities,
-        ...moralisFastOpportunities
+        ...moralisFastOpportunities,
+        ...crossDEXOpportunities
       ].sort((a, b) => b.profitPercentage - a.profitPercentage);
       
-      // Get blockchain data (all sources) including Moralis rate limit status
-      const [blockchainData, multiChainData, gasOptimization, networkHealth, moralisRateLimit] = await Promise.all([
+      // Get blockchain data (all sources) including Moralis rate limit status and DEX status
+      const [blockchainData, multiChainData, gasOptimization, networkHealth, moralisRateLimit, dexStatus] = await Promise.all([
         this.priceService.getBlockchainData(),
         this.multiChainService.getMultiChainData(),
         this.metaMaskService.getGasOptimization(),
         this.metaMaskService.getNetworkHealth(),
-        Promise.resolve(this.moralisService.getRateLimitStatus())
+        Promise.resolve(this.moralisService.getRateLimitStatus()),
+        Promise.resolve(this.advancedDEXService.getDEXStatus())
       ]);
       
       // Update stats
@@ -139,6 +145,10 @@ export class APIService {
           supportedRpcChains: ['eth'], // Base removed for free tier optimization
           message: 'Optimized for Moralis free tier: 100 CUs/sec Node, 1,500 CUs/sec API'
         },
+        advancedDEX: {
+          status: dexStatus,
+          message: 'Monitoring Curve, Balancer, 1inch, PancakeSwap across multiple networks'
+        },
         priceData: {
           basePrices: this.latestPrices.size,
           uniswapV2Pairs: priceData.uniswapV2.size,
@@ -149,14 +159,16 @@ export class APIService {
           total: this.latestOpportunities.length,
           crossChain: this.latestOpportunities.filter(op => op.type === 'cross-chain').length,
           moralis: this.latestOpportunities.filter(op => op.type === 'moralis-dex').length,
-          singleChain: this.latestOpportunities.filter(op => !op.type || (op.type !== 'cross-chain' && op.type !== 'moralis-dex')).length
+          crossDEX: this.latestOpportunities.filter(op => op.type === 'cross-dex').length,
+          oneInch: this.latestOpportunities.filter(op => op.type === '1inch-aggregator').length,
+          singleChain: this.latestOpportunities.filter(op => !op.type || !['cross-chain', 'moralis-dex', 'cross-dex', '1inch-aggregator'].includes(op.type)).length
         },
         lastUpdate: Date.now(),
         mode: 'multi-chain-live'
       };
 
       logger.debug(`✅ Data updated: ${this.latestPrices.size} prices, ${this.latestOpportunities.length} opportunities`);
-      logger.info(`📊 Opportunity sources: Single-chain: ${this.latestOpportunities.filter(op => !op.type).length}, Cross-chain: ${this.latestOpportunities.filter(op => op.type === 'cross-chain').length}, Moralis: ${this.latestOpportunities.filter(op => op.type === 'moralis-dex').length}`);
+      logger.info(`📊 Opportunity sources: Single-chain: ${this.latestOpportunities.filter(op => !op.type).length}, Cross-chain: ${this.latestOpportunities.filter(op => op.type === 'cross-chain').length}, Moralis: ${this.latestOpportunities.filter(op => op.type === 'moralis-dex').length}, Cross-DEX: ${this.latestOpportunities.filter(op => op.type === 'cross-dex').length}, 1inch: ${this.latestOpportunities.filter(op => op.type === '1inch-aggregator').length}`);
     } catch (error) {
       logger.error('Error updating market data:', error);
     }
