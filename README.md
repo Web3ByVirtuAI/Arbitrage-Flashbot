@@ -106,21 +106,27 @@ npm run build
 ```
 
 ### 🔑 Multi-Chain Configuration
-Edit `.env` file with your Alchemy API key for all 45+ networks:
+
+**⚠️ SECURITY FIRST:**
+1. Copy `.env.template` to `.env`: `cp .env.template .env`
+2. Edit `.env` with your REAL API keys (never commit this file!)
+3. Your `.env` file is gitignored for security
+
+Configure your `.env` file:
 ```env
-# ✅ WORKING CONFIGURATION - Your Real API Key
-ALCHEMY_API_KEY=YU5t_F_ZQi7yk9ZrRKoBf
+# ⚠️ SECURITY: Get your free API key from https://alchemy.com
+ALCHEMY_API_KEY=YOUR_ALCHEMY_API_KEY_HERE
 
-# Multi-Chain RPC Endpoints (all using your Alchemy key)
-RPC_URL_ETHEREUM=https://eth-mainnet.g.alchemy.com/v2/YU5t_F_ZQi7yk9ZrRKoBf
-RPC_URL_POLYGON=https://polygon-mainnet.g.alchemy.com/v2/YU5t_F_ZQi7yk9ZrRKoBf
-RPC_URL_ARBITRUM=https://arb-mainnet.g.alchemy.com/v2/YU5t_F_ZQi7yk9ZrRKoBf
-RPC_URL_BASE=https://base-mainnet.g.alchemy.com/v2/YU5t_F_ZQi7yk9ZrRKoBf
-RPC_URL_OPTIMISM=https://opt-mainnet.g.alchemy.com/v2/YU5t_F_ZQi7yk9ZrRKoBf
-# ... and 40+ more networks!
+# Multi-Chain RPC Endpoints (replace YOUR_ALCHEMY_API_KEY_HERE with your key)
+RPC_URL_ETHEREUM=https://eth-mainnet.g.alchemy.com/v2/YOUR_ALCHEMY_API_KEY_HERE
+RPC_URL_POLYGON=https://polygon-mainnet.g.alchemy.com/v2/YOUR_ALCHEMY_API_KEY_HERE
+RPC_URL_ARBITRUM=https://arb-mainnet.g.alchemy.com/v2/YOUR_ALCHEMY_API_KEY_HERE
+RPC_URL_BASE=https://base-mainnet.g.alchemy.com/v2/YOUR_ALCHEMY_API_KEY_HERE
+RPC_URL_OPTIMISM=https://opt-mainnet.g.alchemy.com/v2/YOUR_ALCHEMY_API_KEY_HERE
+# ... and 40+ more networks supported!
 
-# Optional Trading (requires private key)
-# PRIVATE_KEY=your_private_key_here
+# Optional Trading (⚠️ NEVER commit real private keys to git)
+# PRIVATE_KEY=your_private_key_here_KEEP_SECRET
 MIN_PROFIT_THRESHOLD=0.01
 MAX_SLIPPAGE=0.005
 ```

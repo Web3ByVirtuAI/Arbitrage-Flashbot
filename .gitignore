@@ -53,10 +53,17 @@ typings/
 # Yarn Integrity file
 .yarn-integrity
 
-# dotenv environment variables file
+# ⚠️ CRITICAL: NEVER commit environment files containing API keys or private keys
 .env
 .env.local
 .env.production
+.env.development
+.env.test
+.env.*.local
+# ANY file containing sensitive keys
+*private-key*
+*api-key*
+*secret*
 
 # parcel-bundler cache
 .cache
