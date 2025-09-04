@@ -95,11 +95,12 @@ export class APIService {
       this.latestPrices = priceData.basePrices;
       
       // Find arbitrage opportunities (all sources)
-      const [singleChainOpportunities, crossChainOpportunities, moralisOpportunities, moralisCrossChainOpportunities] = await Promise.all([
+      const [singleChainOpportunities, crossChainOpportunities, moralisOpportunities, moralisCrossChainOpportunities, moralisFastOpportunities] = await Promise.all([
         this.priceService.findArbitrageOpportunities(),
         this.multiChainService.findCrossChainOpportunities(),
         this.moralisService.findMoralisArbitrageOpportunities(),
-        this.moralisService.findCrossChainArbitrageOpportunities()
+        this.moralisService.findCrossChainArbitrageOpportunities(),
+        this.moralisService.findFastArbitrageOpportunities()
       ]);
       
       // Combine opportunities, prioritizing by profitability
@@ -107,7 +108,8 @@ export class APIService {
         ...singleChainOpportunities,
         ...crossChainOpportunities,
         ...moralisOpportunities,
-        ...moralisCrossChainOpportunities
+        ...moralisCrossChainOpportunities,
+        ...moralisFastOpportunities
       ].sort((a, b) => b.profitPercentage - a.profitPercentage);
       
       // Get blockchain data (all sources)

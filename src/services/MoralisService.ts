@@ -3,11 +3,23 @@ import { logger } from '../utils/logger';
 
 /**
  * Moralis Enhanced RPC + Web3 Data API Service
- * Extended RPC methods + DeFi data for arbitrage trading
+ * Now with dedicated RPC node endpoints for Extended RPC methods
  */
 export class MoralisService {
   private apiKey: string;
   private baseUrl = 'https://deep-index.moralis.io/api/v2.2';
+  
+  // Dedicated RPC node endpoints 
+  private rpcNodes: { [key: string]: string[] } = {
+    'eth': [
+      'https://site1.moralis-nodes.com/eth/87db561a51774a28b7de52a40b774341',
+      'https://site2.moralis-nodes.com/eth/87db561a51774a28b7de52a40b774341'
+    ],
+    'base': [
+      'https://site1.moralis-nodes.com/base/9eb3293592a7491f8645372f490f8708',
+      'https://site2.moralis-nodes.com/base/9eb3293592a7491f8645372f490f8708'
+    ]
+  };
 
   private cache: Map<string, { data: any, timestamp: number }> = new Map();
   private cacheTimeout = 30000; // 30 seconds
@@ -56,12 +68,53 @@ export class MoralisService {
   }
 
   /**
-   * Get multiple token prices using Web3 Data API (WORKING)
+   * Get multiple token prices using Extended RPC (FASTEST - for supported chains)
    */
-  async getMultiTokenPrices(tokenAddresses: string[], chain: string = 'eth'): Promise<any> {
+  async getMultiTokenPricesRPC(tokenAddresses: string[], chain: string = 'eth'): Promise<any> {
+    if (!tokenAddresses.length || !this.rpcNodes[chain]) return null;
+
+    const cacheKey = `rpc_multi_prices_${tokenAddresses.join(',')}_${chain}`;
+    const cached = this.getCached(cacheKey);
+    if (cached) return cached;
+
+    try {
+      // Use Extended RPC for batch token prices
+      const pricesData = await this.makeExtendedRpcCall('moralis_getTokenPrice', {
+        addresses: tokenAddresses,
+        chain: this.getChainId(chain),
+        to_block: 'latest'
+      }, chain);
+
+      const result = {
+        chain,
+        prices: pricesData || [],
+        timestamp: Date.now(),
+        count: Array.isArray(pricesData) ? pricesData.length : 0,
+        total: tokenAddresses.length,
+        source: 'extended-rpc'
+      };
+
+      this.setCache(cacheKey, result);
+      logger.info(`RPC got prices for ${result.count}/${tokenAddresses.length} tokens on ${chain}`);
+      return result;
+    } catch (error) {
+      const errorMsg = (error as any)?.response?.data?.message || (error as Error).message;
+      if (errorMsg.includes('free-plan-daily total included usage has been consumed')) {
+        logger.info(`Moralis Extended RPC daily limit reached for ${chain}, using Web3 Data API`);
+      } else {
+        logger.warn(`Extended RPC failed for ${chain}, falling back to Web3 Data API:`, errorMsg);
+      }
+      return await this.getMultiTokenPricesAPI(tokenAddresses, chain);
+    }
+  }
+
+  /**
+   * Get multiple token prices using Web3 Data API (FALLBACK)
+   */
+  async getMultiTokenPricesAPI(tokenAddresses: string[], chain: string = 'eth'): Promise<any> {
     if (!this.apiKey || !tokenAddresses.length) return null;
 
-    const cacheKey = `multi_prices_${tokenAddresses.join(',')}_${chain}`;
+    const cacheKey = `api_multi_prices_${tokenAddresses.join(',')}_${chain}`;
     const cached = this.getCached(cacheKey);
     if (cached) return cached;
 
@@ -89,16 +142,30 @@ export class MoralisService {
         prices,
         timestamp: Date.now(),
         count: prices.length,
-        total: tokenAddresses.length
+        total: tokenAddresses.length,
+        source: 'web3-data-api'
       };
 
       this.setCache(cacheKey, result);
-      logger.info(`Got prices for ${prices.length}/${tokenAddresses.length} tokens on ${chain}`);
+      logger.info(`API got prices for ${prices.length}/${tokenAddresses.length} tokens on ${chain}`);
       return result;
     } catch (error) {
-      logger.error(`Moralis batch price error:`, error);
+      logger.error(`Moralis API batch price error:`, error);
       return null;
     }
+  }
+
+  /**
+   * Get multiple token prices (AUTO - tries RPC first, falls back to API)
+   */
+  async getMultiTokenPrices(tokenAddresses: string[], chain: string = 'eth'): Promise<any> {
+    // Try Extended RPC first for supported chains (eth, base)
+    if (this.rpcNodes[chain]) {
+      return await this.getMultiTokenPricesRPC(tokenAddresses, chain);
+    }
+    
+    // Fallback to Web3 Data API for other chains
+    return await this.getMultiTokenPricesAPI(tokenAddresses, chain);
   }
 
   /**
@@ -204,6 +271,97 @@ export class MoralisService {
     } catch (error) {
       logger.error(`Moralis gas data error for ${chain}:`, error);
       return null;
+    }
+  }
+
+  /**
+   * ULTRA-FAST cross-chain arbitrage detection using Extended RPC (NEW)
+   */
+  async findFastArbitrageOpportunities(): Promise<any[]> {
+    if (!this.apiKey) return [];
+
+    try {
+      const opportunities: any[] = [];
+      const targetTokens = [
+        '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', // WETH
+        '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599', // WBTC  
+        '0x514910771AF9Ca656af840dff83E8264EcF986CA', // LINK
+        '0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984', // UNI
+        '0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9'  // AAVE
+      ];
+
+      // Use only chains with RPC nodes for maximum speed
+      const rpcChains = Object.keys(this.rpcNodes); // ['eth', 'base']
+      
+      const chainData = await Promise.allSettled(
+        rpcChains.map(chain => this.getMultiTokenPricesRPC(targetTokens, chain))
+      );
+
+      const pricesByToken = new Map();
+
+      // Organize prices by token across RPC chains
+      chainData.forEach((result, chainIndex) => {
+        if (result.status === 'fulfilled' && result.value?.prices) {
+          const chain = rpcChains[chainIndex];
+          
+          result.value.prices.forEach((tokenPrice: any, tokenIndex: number) => {
+            const tokenAddress = targetTokens[tokenIndex];
+            
+            if (!pricesByToken.has(tokenAddress)) {
+              pricesByToken.set(tokenAddress, []);
+            }
+            
+            pricesByToken.get(tokenAddress).push({
+              chain,
+              price: parseFloat(tokenPrice.usdPrice || '0'),
+              timestamp: Date.now(),
+              tokenSymbol: tokenPrice.tokenSymbol || 'Unknown',
+              source: 'extended-rpc'
+            });
+          });
+        }
+      });
+
+      // Find cross-chain arbitrage opportunities
+      pricesByToken.forEach((chainPrices, tokenAddress) => {
+        if (chainPrices.length >= 2) {
+          chainPrices.sort((a: any, b: any) => a.price - b.price);
+          const lowest = chainPrices[0];
+          const highest = chainPrices[chainPrices.length - 1];
+          
+          if (lowest.price > 0 && highest.price > 0) {
+            const priceDiff = highest.price - lowest.price;
+            const profitPercentage = (priceDiff / lowest.price) * 100;
+
+            if (profitPercentage > 0.1) { // 0.1% minimum for RPC speed
+              opportunities.push({
+                id: `moralis-rpc-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+                type: 'cross-chain-extended-rpc',
+                tokenAddress,
+                tokenSymbol: lowest.tokenSymbol,
+                buyChain: lowest.chain,
+                sellChain: highest.chain,
+                buyPrice: lowest.price,
+                sellPrice: highest.price,
+                profitPercentage,
+                estimatedProfit: priceDiff,
+                timestamp: Date.now(),
+                priority: Math.floor(profitPercentage * 100),
+                source: 'Moralis Extended RPC',
+                method: 'moralis_getTokenPrice'
+              });
+            }
+          }
+        }
+      });
+
+      opportunities.sort((a, b) => b.profitPercentage - a.profitPercentage);
+      logger.info(`Moralis Extended RPC found ${opportunities.length} opportunities`);
+      
+      return opportunities.slice(0, 10);
+    } catch (error) {
+      logger.error('Error in Moralis Extended RPC arbitrage detection:', error);
+      return [];
     }
   }
 
@@ -369,6 +527,54 @@ export class MoralisService {
   }
 
 
+
+  /**
+   * Make Extended RPC call using dedicated node endpoints
+   */
+  private async makeExtendedRpcCall(method: string, params: any, chain: string = 'eth'): Promise<any> {
+    if (!this.rpcNodes[chain]) {
+      throw new Error(`No RPC nodes configured for chain: ${chain}`);
+    }
+
+    const rpcPayload = {
+      jsonrpc: '2.0',
+      id: Date.now(),
+      method,
+      params: Array.isArray(params) ? params : [params]
+    };
+
+    // Try primary node, fallback to secondary  
+    const nodeUrls = this.rpcNodes[chain];
+    let lastError;
+
+    for (const nodeUrl of nodeUrls) {
+      try {
+        const config = {
+          method: 'POST',
+          url: nodeUrl,
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': this.apiKey
+          },
+          data: rpcPayload,
+          timeout: 8000
+        };
+
+        const response = await axios(config);
+        
+        if (response.data.error) {
+          throw new Error(`RPC Error: ${response.data.error.message}`);
+        }
+        
+        return response.data.result;
+      } catch (error) {
+        lastError = error;
+        logger.debug(`RPC node ${nodeUrl} failed, trying next...`, (error as Error).message);
+      }
+    }
+
+    throw lastError;
+  }
 
   /**
    * Make authenticated request to Moralis Web3 Data API
