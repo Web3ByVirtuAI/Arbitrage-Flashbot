@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { ethers, parseEther, formatEther } from 'ethers';
 import axios from 'axios';
 
 interface FlashLoanProvider {
@@ -194,21 +194,21 @@ export class FlashLoanProviderService {
 
     for (const provider of providers) {
       try {
-        const amountBN = ethers.utils.parseEther(amount);
-        const feeBN = amountBN.mul(provider.fees).div(10000); // basis points to percentage
-        const totalCostBN = feeBN.add(ethers.utils.parseEther((provider.gasEstimate * 0.000000020).toString())); // Estimated gas cost
+        const amountBN = parseEther(amount);
+        const feeBN = (amountBN * BigInt(provider.fees)) / BigInt(10000); // basis points to percentage
+        const totalCostBN = feeBN + parseEther((provider.gasEstimate * 0.000000020).toString()); // Estimated gas cost
 
         quotes.push({
           provider: provider.name,
           amount,
           token,
-          fee: ethers.utils.formatEther(feeBN),
+          fee: formatEther(feeBN),
           gasEstimate: provider.gasEstimate,
-          totalCost: ethers.utils.formatEther(totalCostBN),
+          totalCost: formatEther(totalCostBN),
           executionTime: provider.protocol === 'dydx' ? 8 : 12, // dYdX is faster
           success_rate: provider.reliability
         });
-      } catch (error) {
+      } catch (error: any) {
         console.error(`Error calculating quote for ${provider.name}:`, error);
       }
     }
@@ -250,7 +250,7 @@ export class FlashLoanProviderService {
     params: string, // encoded arbitrage parameters
     referralCode: number = 0
   ): string {
-    const iface = new ethers.utils.Interface([
+    const iface = new ethers.Interface([
       'function flashLoan(address[] assets, uint256[] amounts, uint256[] modes, address onBehalfOf, bytes params, uint16 referralCode)'
     ]);
 
@@ -265,7 +265,7 @@ export class FlashLoanProviderService {
     amounts: string[],
     userData: string
   ): string {
-    const iface = new ethers.utils.Interface([
+    const iface = new ethers.Interface([
       'function flashLoan(address recipient, address[] tokens, uint256[] amounts, bytes userData)'
     ]);
 
@@ -280,7 +280,7 @@ export class FlashLoanProviderService {
     amount: string,
     calldata: string
   ): string {
-    const iface = new ethers.utils.Interface([
+    const iface = new ethers.Interface([
       'function operate(tuple(address owner, uint256 number, uint256 market, uint256 amount, uint256 data, address from, address to, bytes calldata)[])'
     ]);
 
@@ -289,7 +289,7 @@ export class FlashLoanProviderService {
       owner: '0x', // Will be filled by execution contract
       number: 0,
       market: this.getMarketId(token),
-      amount: ethers.utils.parseEther(amount),
+      amount: parseEther(amount),
       data: calldata,
       from: '0x',
       to: '0x'
@@ -325,7 +325,7 @@ export class FlashLoanProviderService {
           gasPrice: await this.getCurrentGasPrice(network),
           responseTime: 0 // Will be measured during actual calls
         };
-      } catch (error) {
+      } catch (error: any) {
         healthStatus[provider.name] = {
           status: 'error',
           error: error.message,
@@ -355,9 +355,9 @@ export class FlashLoanProviderService {
   private async getCurrentGasPrice(network: string): Promise<string> {
     try {
       // Use Infura Gas API or fallback to standard estimation
-      const response = await axios.get(`https://gas-api.metaswap.codefi.network/networks/1/suggestedGasFees`);
+      const response = await axios.get(`https://gas.api.metaswap.codefi.network/networks/1/suggestedGasFees`);
       return response.data.high.suggestedMaxFeePerGas;
-    } catch (error) {
+    } catch (error: any) {
       return '20'; // Fallback gas price in gwei
     }
   }
@@ -419,24 +419,24 @@ export class FlashLoanProviderService {
       case 'aave-v3':
         return this.generateAaveV3FlashLoanCalldata(
           [token],
-          [ethers.utils.parseEther(amount).toString()],
+          [parseEther(amount).toString()],
           [0], // No debt mode
           '0x', // Will be execution contract
-          ethers.utils.defaultAbiCoder.encode(['tuple(string,string,string,string)'], [tradePath])
+          ethers.AbiCoder.defaultAbiCoder().encode(['tuple(string,string,string,string)'], [tradePath])
         );
         
       case 'balancer-v2':
         return this.generateBalancerFlashLoanCalldata(
           [token],
-          [ethers.utils.parseEther(amount).toString()],
-          ethers.utils.defaultAbiCoder.encode(['tuple(string,string,string,string)'], [tradePath])
+          [parseEther(amount).toString()],
+          ethers.AbiCoder.defaultAbiCoder().encode(['tuple(string,string,string,string)'], [tradePath])
         );
         
       case 'dydx':
         return this.generateDyDxFlashLoanCalldata(
           token,
           amount,
-          ethers.utils.defaultAbiCoder.encode(['tuple(string,string,string,string)'], [tradePath])
+          ethers.AbiCoder.defaultAbiCoder().encode(['tuple(string,string,string,string)'], [tradePath])
         );
         
       default:

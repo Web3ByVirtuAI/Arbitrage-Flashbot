@@ -100,6 +100,10 @@ export class APIServer {
       
       this.isDemoMode = !alchemyApiKey;
       
+      // Initialize flash loan services for all modes
+      this.flashLoanProviderService = new FlashLoanProviderService();
+      this.flashLoanExecutionService = new FlashLoanExecutionService();
+
       if (this.isDemoMode) {
         // Demo mode - use simulated data
         logger.info('🎯 Running in DEMO mode with simulated data');
@@ -114,10 +118,6 @@ export class APIServer {
         // Initialize API service for real data
         this.apiService = new APIService();
         await this.apiService.start();
-        
-        // Initialize flash loan services
-        this.flashLoanProviderService = new FlashLoanProviderService();
-        this.flashLoanExecutionService = new FlashLoanExecutionService();
         
         if (privateKey) {
           // Full live trading mode
@@ -1105,7 +1105,7 @@ export class APIServer {
         }
       } catch (error) {
         logger.error('Error simulating execution:', error);
-        res.status(500).json({ error: error.message || 'Internal server error' });
+        res.status(500).json({ error: (error as Error).message || 'Internal server error' });
       }
     });
 
@@ -1147,7 +1147,7 @@ export class APIServer {
         }
       } catch (error) {
         logger.error('Error preparing execution:', error);
-        res.status(500).json({ error: error.message || 'Internal server error' });
+        res.status(500).json({ error: (error as Error).message || 'Internal server error' });
       }
     });
 

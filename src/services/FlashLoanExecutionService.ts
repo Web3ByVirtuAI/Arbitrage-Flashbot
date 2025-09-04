@@ -96,8 +96,8 @@ export class FlashLoanExecutionService {
         // Get arbitrage opportunities from all sources
         const [dexOpportunities, crossChainOpportunities, moralisOpportunities] = await Promise.all([
           this.dexService.findCrossDEXArbitrageOpportunities(),
-          this.moralisService.getCrossChainArbitrageOpportunities(),
-          this.moralisService.getFastArbitrageOpportunities(['WETH', 'USDC', 'USDT'])
+          this.moralisService.findCrossChainArbitrageOpportunities(),
+          this.moralisService.findFastArbitrageOpportunities()
         ]);
 
         // Process DEX arbitrage opportunities
@@ -293,7 +293,9 @@ export class FlashLoanExecutionService {
     }
 
     // Check current gas prices
-    const currentGasPrice = await this.metaMaskService.getCurrentGasPrice();
+    const gasData = await this.metaMaskService.getGasOptimization();
+    const networkGasData = gasData.get(opportunity.network) || gasData.get('mainnet');
+    const currentGasPrice = networkGasData ? (networkGasData.gasPrice / 1e9).toString() : '20'; // Convert to gwei
     if (parseFloat(currentGasPrice) > parseFloat(this.riskParameters.maxGasPrice)) {
       risks.push(`High gas price: ${currentGasPrice} gwei > ${this.riskParameters.maxGasPrice} gwei`);
       recommendations.push('Wait for lower gas prices or increase gas limit');
@@ -454,6 +456,20 @@ export class FlashLoanExecutionService {
     this.riskParameters = { ...this.riskParameters, ...newParams };
   }
 
+  // Helper method to get current gas price
+  private async getCurrentGasPrice(network: string = 'ethereum'): Promise<string> {
+    try {
+      const gasData = await this.metaMaskService.getGasOptimization();
+      const networkGasData = gasData.get(network) || gasData.get('mainnet');
+      if (networkGasData) {
+        return (networkGasData.gasPrice / 1e9).toFixed(1); // Convert to gwei
+      }
+      return '20'; // Default fallback
+    } catch (error) {
+      return '20'; // Default fallback on error
+    }
+  }
+
   // Monitor ongoing executions (for future implementation)
   async monitorExecutions(): Promise<any> {
     return {
@@ -467,7 +483,7 @@ export class FlashLoanExecutionService {
       systemHealth: {
         flashLoanProviders: await this.flashLoanService.monitorProviderHealth('ethereum'),
         gasConditions: {
-          current: await this.metaMaskService.getCurrentGasPrice(),
+          current: await this.getCurrentGasPrice('ethereum'),
           threshold: this.riskParameters.maxGasPrice,
           recommendation: 'Monitor gas prices for optimal execution timing'
         }
