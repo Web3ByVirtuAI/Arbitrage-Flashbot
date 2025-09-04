@@ -9,7 +9,17 @@
     "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1",
     "scanner": "ts-node src/scanner.ts",
-    "monitor": "ts-node src/monitor.ts"
+    "monitor": "ts-node src/monitor.ts",
+    "setup-production": "./scripts/setup-production.sh",
+    "deploy-production": "./scripts/deploy-production.sh",
+    "generate-wallet": "node scripts/generate-wallet.js",
+    "test-config": "node scripts/test-config.js",
+    "production-monitor": "./scripts/monitor.sh",
+    "emergency-stop": "./scripts/emergency-stop.sh",
+    "logs": "pm2 logs flash-loan-bot-prod",
+    "status": "pm2 status",
+    "restart": "pm2 restart flash-loan-bot-prod",
+    "stop": "pm2 stop flash-loan-bot-prod"
   },
   "keywords": [
     "flash-loan",
