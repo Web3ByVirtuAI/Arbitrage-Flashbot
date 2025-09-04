@@ -3,7 +3,7 @@ export const NETWORK_CONFIG = {
   ETHEREUM: {
     name: 'Ethereum',
     chainId: 1,
-    rpcUrl: process.env.RPC_URL_ETHEREUM || 'https://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY',
+    rpcUrl: process.env.RPC_URL_ETHEREUM || process.env.ALCHEMY_RPC_URL || 'https://eth-mainnet.g.alchemy.com/v2/' + (process.env.ALCHEMY_API_KEY || 'demo'),
     blockTime: 12000, // 12 seconds
     gasLimit: 500000,
     nativeCurrency: 'ETH',
@@ -13,7 +13,7 @@ export const NETWORK_CONFIG = {
   POLYGON: {
     name: 'Polygon',
     chainId: 137,
-    rpcUrl: process.env.RPC_URL_POLYGON || 'https://polygon-mainnet.g.alchemy.com/v2/YOUR_API_KEY',
+    rpcUrl: process.env.RPC_URL_POLYGON || 'https://polygon-mainnet.g.alchemy.com/v2/' + (process.env.ALCHEMY_API_KEY || 'demo'),
     blockTime: 2000, // 2 seconds
     gasLimit: 500000,
     nativeCurrency: 'MATIC',
@@ -23,7 +23,7 @@ export const NETWORK_CONFIG = {
   ARBITRUM: {
     name: 'Arbitrum One',
     chainId: 42161,
-    rpcUrl: process.env.RPC_URL_ARBITRUM || 'https://arb-mainnet.g.alchemy.com/v2/YOUR_API_KEY',
+    rpcUrl: process.env.RPC_URL_ARBITRUM || 'https://arb-mainnet.g.alchemy.com/v2/' + (process.env.ALCHEMY_API_KEY || 'demo'),
     blockTime: 1000, // 1 second
     gasLimit: 1000000,
     nativeCurrency: 'ETH',
@@ -33,7 +33,7 @@ export const NETWORK_CONFIG = {
   BASE: {
     name: 'Base',
     chainId: 8453,
-    rpcUrl: process.env.RPC_URL_BASE || 'https://base-mainnet.g.alchemy.com/v2/YOUR_API_KEY',
+    rpcUrl: process.env.RPC_URL_BASE || 'https://base-mainnet.g.alchemy.com/v2/' + (process.env.ALCHEMY_API_KEY || 'demo'),
     blockTime: 2000, // 2 seconds
     gasLimit: 500000,
     nativeCurrency: 'ETH',
@@ -43,7 +43,7 @@ export const NETWORK_CONFIG = {
   OPTIMISM: {
     name: 'OP Mainnet',
     chainId: 10,
-    rpcUrl: process.env.RPC_URL_OPTIMISM || 'https://opt-mainnet.g.alchemy.com/v2/YOUR_API_KEY',
+    rpcUrl: process.env.RPC_URL_OPTIMISM || 'https://opt-mainnet.g.alchemy.com/v2/' + (process.env.ALCHEMY_API_KEY || 'demo'),
     blockTime: 2000, // 2 seconds
     gasLimit: 500000,
     nativeCurrency: 'ETH',
@@ -53,7 +53,7 @@ export const NETWORK_CONFIG = {
   BNB: {
     name: 'BNB Smart Chain',
     chainId: 56,
-    rpcUrl: process.env.RPC_URL_BNB || 'https://bnb-mainnet.g.alchemy.com/v2/YOUR_API_KEY',
+    rpcUrl: process.env.RPC_URL_BNB || 'https://bnb-mainnet.g.alchemy.com/v2/' + (process.env.ALCHEMY_API_KEY || 'demo'),
     blockTime: 3000, // 3 seconds
     gasLimit: 500000,
     nativeCurrency: 'BNB',
@@ -63,7 +63,7 @@ export const NETWORK_CONFIG = {
   AVALANCHE: {
     name: 'Avalanche',
     chainId: 43114,
-    rpcUrl: process.env.RPC_URL_AVALANCHE || 'https://avax-mainnet.g.alchemy.com/v2/YOUR_API_KEY',
+    rpcUrl: process.env.RPC_URL_AVALANCHE || 'https://avax-mainnet.g.alchemy.com/v2/' + (process.env.ALCHEMY_API_KEY || 'demo'),
     blockTime: 2000, // 2 seconds
     gasLimit: 500000,
     nativeCurrency: 'AVAX',
@@ -74,7 +74,7 @@ export const NETWORK_CONFIG = {
   UNICHAIN: {
     name: 'Unichain',
     chainId: 1301,
-    rpcUrl: process.env.RPC_URL_UNICHAIN || 'https://unichain-mainnet.g.alchemy.com/v2/YOUR_API_KEY',
+    rpcUrl: process.env.RPC_URL_UNICHAIN || 'https://unichain-mainnet.g.alchemy.com/v2/' + (process.env.ALCHEMY_API_KEY || 'demo'),
     blockTime: 1000, // 1 second
     gasLimit: 1000000,
     nativeCurrency: 'ETH',
@@ -84,7 +84,7 @@ export const NETWORK_CONFIG = {
   BLAST: {
     name: 'Blast',
     chainId: 81457,
-    rpcUrl: process.env.RPC_URL_BLAST || 'https://blast-mainnet.g.alchemy.com/v2/YOUR_API_KEY',
+    rpcUrl: process.env.RPC_URL_BLAST || 'https://blast-mainnet.g.alchemy.com/v2/' + (process.env.ALCHEMY_API_KEY || 'demo'),
     blockTime: 2000, // 2 seconds
     gasLimit: 500000,
     nativeCurrency: 'ETH',

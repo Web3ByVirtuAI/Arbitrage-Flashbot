@@ -1,5 +1,7 @@
 import { PriceService } from './PriceService';
 import { MultiChainPriceService } from './MultiChainPriceService';
+import { MoralisService } from './MoralisService';
+import { MetaMaskService } from './MetaMaskService';
 import { logger } from '../utils/logger';
 import { PriceData } from '../core/PriceMonitor';
 import { ArbitrageOpportunity } from '../core/OpportunityFinder';
@@ -11,6 +13,8 @@ import { ArbitrageOpportunity } from '../core/OpportunityFinder';
 export class APIService {
   private priceService: PriceService;
   private multiChainService: MultiChainPriceService;
+  private moralisService: MoralisService;
+  public metaMaskService: MetaMaskService;
   private isRunning: boolean = false;
   private updateInterval: NodeJS.Timeout | null = null;
   private readonly UPDATE_FREQUENCY = 5000; // 5 seconds
@@ -23,6 +27,8 @@ export class APIService {
   constructor() {
     this.priceService = new PriceService();
     this.multiChainService = new MultiChainPriceService();
+    this.moralisService = new MoralisService();
+    this.metaMaskService = new MetaMaskService();
   }
 
   /**
@@ -88,22 +94,28 @@ export class APIService {
       // Update latest prices from base data
       this.latestPrices = priceData.basePrices;
       
-      // Find arbitrage opportunities (both single-chain and cross-chain)
-      const [singleChainOpportunities, crossChainOpportunities] = await Promise.all([
+      // Find arbitrage opportunities (all sources)
+      const [singleChainOpportunities, crossChainOpportunities, moralisOpportunities, moralisCrossChainOpportunities] = await Promise.all([
         this.priceService.findArbitrageOpportunities(),
-        this.multiChainService.findCrossChainOpportunities()
+        this.multiChainService.findCrossChainOpportunities(),
+        this.moralisService.findMoralisArbitrageOpportunities(),
+        this.moralisService.findCrossChainArbitrageOpportunities()
       ]);
       
       // Combine opportunities, prioritizing by profitability
       this.latestOpportunities = [
         ...singleChainOpportunities,
-        ...crossChainOpportunities
+        ...crossChainOpportunities,
+        ...moralisOpportunities,
+        ...moralisCrossChainOpportunities
       ].sort((a, b) => b.profitPercentage - a.profitPercentage);
       
-      // Get blockchain data (both single-chain and multi-chain)
-      const [blockchainData, multiChainData] = await Promise.all([
+      // Get blockchain data (all sources)
+      const [blockchainData, multiChainData, gasOptimization, networkHealth] = await Promise.all([
         this.priceService.getBlockchainData(),
-        this.multiChainService.getMultiChainData()
+        this.multiChainService.getMultiChainData(),
+        this.metaMaskService.getGasOptimization(),
+        this.metaMaskService.getNetworkHealth()
       ]);
       
       // Update stats
@@ -114,6 +126,10 @@ export class APIService {
           activeProviders: this.multiChainService.getProviderCount(),
           chainData: Array.from(multiChainData.values())
         },
+        gasOptimization: {
+          networks: Array.from(gasOptimization.values()),
+          healthStatus: networkHealth
+        },
         priceData: {
           basePrices: this.latestPrices.size,
           uniswapV2Pairs: priceData.uniswapV2.size,
@@ -123,13 +139,15 @@ export class APIService {
         opportunities: {
           total: this.latestOpportunities.length,
           crossChain: this.latestOpportunities.filter(op => op.type === 'cross-chain').length,
-          singleChain: this.latestOpportunities.filter(op => !op.type || op.type !== 'cross-chain').length
+          moralis: this.latestOpportunities.filter(op => op.type === 'moralis-dex').length,
+          singleChain: this.latestOpportunities.filter(op => !op.type || (op.type !== 'cross-chain' && op.type !== 'moralis-dex')).length
         },
         lastUpdate: Date.now(),
         mode: 'multi-chain-live'
       };
 
       logger.debug(`✅ Data updated: ${this.latestPrices.size} prices, ${this.latestOpportunities.length} opportunities`);
+      logger.info(`📊 Opportunity sources: Single-chain: ${this.latestOpportunities.filter(op => !op.type).length}, Cross-chain: ${this.latestOpportunities.filter(op => op.type === 'cross-chain').length}, Moralis: ${this.latestOpportunities.filter(op => op.type === 'moralis-dex').length}`);
     } catch (error) {
       logger.error('Error updating market data:', error);
     }

@@ -10,34 +10,38 @@ Advanced cross-chain arbitrage bot with flash loan execution across 45+ blockcha
 
 ### Core Components
 - **MultiChainPriceService** - Scans 45+ networks for arbitrage opportunities
-- **APIService** - Coordinates real-time data from CoinGecko, Alchemy, The Graph
+- **MoralisService** - Enhanced DEX data and cross-chain price aggregation  
+- **APIService** - Coordinates real-time data from multiple sources
 - **PriceService** - Live market data integration
-- **OpportunityFinder** - DEX arbitrage detection
+- **OpportunityFinder** - Multi-DEX arbitrage detection
 - **AutoTrader** - Automated cross-chain trading engine
 
 ### 🌐 Supported Networks (45+)
 **Major Chains**: Ethereum, Polygon, Arbitrum, Optimism, Base, BNB, Avalanche  
-**Emerging**: Unichain, Blast, World Chain, Berachain, Sonic, Abstract  
-**Gaming/NFT**: Ronin, ApeChain, Galactica  
-**And 30+ more via single Alchemy API key**
+**Emerging**: Unichain, Blast, Linea, zkSync, Mantle, Flow, Ronin  
+**Gaming/NFT**: Ronin, ApeChain, Lisk, Pulsechain  
+**Via Alchemy (45+ networks)** + **Via Moralis (20+ networks)**
 
 ### 📊 Live Data Sources
-- **CoinGecko API** - Real-time token prices
-- **Alchemy API** - 45+ blockchain network access
+- **Alchemy RPC** - 45+ blockchain network access & transaction execution
+- **Moralis Web3 Data API** - Enhanced DEX data, token prices, cross-chain aggregation
+- **CoinGecko API** - Market data and price feeds
 - **The Graph** - DEX liquidity data (Uniswap, SushiSwap)
 
 ## 🚀 Features
 
 ### ✅ Multi-Chain Arbitrage
-- Cross-chain price difference detection
-- Multi-DEX scanning (Uniswap V2/V3, SushiSwap, PancakeSwap)
+- Cross-chain price difference detection with Moralis aggregation
+- Multi-DEX scanning (Uniswap V2/V3, SushiSwap, PancakeSwap, QuickSwap)
+- Enhanced DEX liquidity tracking across 20+ networks
 - Flash loan execution via AAVE, Balancer, dYdX
 - Real-time opportunity alerts
 
 ### 📈 Live Market Data
-- Real ETH, WBTC, LINK, UNI, AAVE prices
+- Real ETH ($4,283), WBTC, LINK, UNI, AAVE prices via Moralis
+- Enhanced token metadata and price feeds
 - Live gas tracking across all chains
-- 5-second update cycles
+- 5-second update cycles with caching
 - Multi-chain health monitoring
 
 ### 🔌 API Endpoints
@@ -51,7 +55,8 @@ Advanced cross-chain arbitrage bot with flash loan execution across 45+ blockcha
 
 ### Prerequisites
 - Node.js 18+
-- Alchemy API key (free at https://alchemy.com)
+- **Alchemy API key** (free at https://alchemy.com) - For RPC & transaction execution
+- **Moralis API key** (free at https://moralis.com) - For enhanced DEX data
 - Optional: Private key for trading (⚠️ keep secure!)
 
 ### Installation
@@ -66,10 +71,11 @@ touch .env
 ```
 
 ### Configuration
-Add to your `.env` file (replace YOUR_API_KEY):
+Add to your `.env` file:
 ```env
-# Get free API key from https://alchemy.com
-ALCHEMY_API_KEY=YOUR_API_KEY
+# Primary APIs (both required for full functionality)
+ALCHEMY_API_KEY=your_alchemy_api_key     # Get from https://alchemy.com
+MORALIS_API_KEY=your_moralis_api_key     # Get from https://moralis.com
 
 # Bot settings
 MIN_PROFIT_THRESHOLD=0.01
@@ -111,9 +117,11 @@ pm2 start ecosystem.config.cjs
 
 ## 🔧 Technology Stack
 - **Backend**: Node.js + TypeScript
-- **Blockchain**: ethers.js + Alchemy (45+ networks)
-- **APIs**: CoinGecko, The Graph, Alchemy
+- **Blockchain**: ethers.js + Alchemy RPC (45+ networks)
+- **Enhanced Data**: Moralis Web3 Data API (20+ networks)
+- **APIs**: Alchemy, Moralis, CoinGecko, The Graph
 - **Process**: PM2 daemon management
+- **Architecture**: Multi-provider failover with enhanced DEX aggregation
 
 ---
 

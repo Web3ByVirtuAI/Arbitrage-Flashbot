@@ -315,6 +315,103 @@ export class APIServer {
       }
     });
 
+    // Enhanced API endpoints for Moralis and MetaMask features
+    this.app.get('/api/gas-optimization', async (req, res) => {
+      try {
+        if (this.isDemoMode) {
+          res.json({
+            networks: [
+              { network: 'mainnet', gasPrice: '20000000000', recommendation: 'standard' },
+              { network: 'polygon', gasPrice: '30000000000', recommendation: 'fast' }
+            ],
+            mode: 'demo'
+          });
+        } else if (this.apiService) {
+          const gasData = await this.apiService.metaMaskService?.getGasOptimization();
+          res.json({ 
+            networks: gasData ? Array.from(gasData.values()) : [],
+            mode: 'live'
+          });
+        } else {
+          res.status(503).json({ error: 'Gas optimization service not available' });
+        }
+      } catch (error) {
+        logger.error('Error fetching gas optimization:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
+    this.app.get('/api/network-health', async (req, res) => {
+      try {
+        if (this.isDemoMode) {
+          res.json({
+            overall: true,
+            networks: {
+              mainnet: { healthy: true, blockNumber: 18000000 },
+              polygon: { healthy: true, blockNumber: 45000000 }
+            },
+            mode: 'demo'
+          });
+        } else if (this.apiService) {
+          const health = await this.apiService.metaMaskService?.getNetworkHealth();
+          res.json({ ...health, mode: 'live' });
+        } else {
+          res.status(503).json({ error: 'Network health service not available' });
+        }
+      } catch (error) {
+        logger.error('Error fetching network health:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
+    this.app.post('/api/simulate-transaction', async (req, res) => {
+      try {
+        const { txData, network = 'mainnet' } = req.body;
+        
+        if (this.isDemoMode) {
+          res.json({
+            success: true,
+            gasEstimate: '150000',
+            totalCostEther: '0.003',
+            mode: 'demo'
+          });
+        } else if (this.apiService) {
+          const simulation = await this.apiService.metaMaskService?.simulateTransaction(txData, network);
+          res.json({ ...simulation, mode: 'live' });
+        } else {
+          res.status(503).json({ error: 'Transaction simulation not available' });
+        }
+      } catch (error) {
+        logger.error('Error simulating transaction:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
+    this.app.get('/api/optimal-network/:txType', async (req, res) => {
+      try {
+        const txType = req.params.txType as 'swap' | 'flashloan' | 'transfer';
+        
+        if (this.isDemoMode) {
+          res.json({
+            recommended: {
+              network: 'polygon',
+              estimatedCostEther: '0.001',
+              congestion: 'low'
+            },
+            mode: 'demo'
+          });
+        } else if (this.apiService) {
+          const optimal = await this.apiService.metaMaskService?.getOptimalNetwork(txType);
+          res.json({ ...optimal, mode: 'live' });
+        } else {
+          res.status(503).json({ error: 'Network optimization not available' });
+        }
+      } catch (error) {
+        logger.error('Error finding optimal network:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
     this.app.post('/api/emergency-stop', async (req, res) => {
       try {
         if (this.isDemoMode) {
