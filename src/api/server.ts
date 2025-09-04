@@ -10,6 +10,7 @@ import { FlashLoanExecutor } from '../core/FlashLoanExecutor';
 import { PriceMonitor } from '../core/PriceMonitor';
 import { AutoTrader } from '../core/AutoTrader';
 import { NETWORK_CONFIG } from '../config/constants';
+import { DemoDataProvider } from '../demo/DemoDataProvider';
 
 export class APIServer {
   private app: express.Application;
@@ -22,6 +23,8 @@ export class APIServer {
   private flashLoanExecutor!: FlashLoanExecutor;
   private priceMonitor!: PriceMonitor;
   private autoTrader!: AutoTrader;
+  private demoProvider!: DemoDataProvider;
+  private isDemoMode: boolean = false;
 
   // Rate limiting
   private rateLimiter: RateLimiterMemory;
@@ -85,20 +88,22 @@ export class APIServer {
       // Initialize provider
       this.provider = new ethers.JsonRpcProvider(NETWORK_CONFIG.ETHEREUM.rpcUrl);
       
-      // Initialize core components
-      this.opportunityFinder = new OpportunityFinder(this.provider);
-      this.priceMonitor = new PriceMonitor();
-      
-      // Initialize flash loan executor (requires private key)
+      // Check if we should run in demo mode
       const privateKey = process.env.PRIVATE_KEY;
-      if (!privateKey) {
-        logger.warn('No private key provided, flash loan executor will not be functional');
-      } else {
-        this.flashLoanExecutor = new FlashLoanExecutor(this.provider, privateKey);
-      }
+      this.isDemoMode = !privateKey;
       
-      // Initialize auto trader
-      if (this.flashLoanExecutor) {
+      if (this.isDemoMode) {
+        // Demo mode - use simulated data
+        logger.info('🎯 Running in DEMO mode with simulated data');
+        this.demoProvider = new DemoDataProvider();
+        this.demoProvider.start();
+      } else {
+        // Live mode - initialize real components
+        logger.info('⚡ Running in LIVE mode with real connections');
+        this.opportunityFinder = new OpportunityFinder(this.provider);
+        this.priceMonitor = new PriceMonitor();
+        this.flashLoanExecutor = new FlashLoanExecutor(this.provider, privateKey!);
+        
         this.autoTrader = new AutoTrader(
           this.opportunityFinder,
           this.flashLoanExecutor,
@@ -120,7 +125,9 @@ export class APIServer {
         status: 'OK',
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
-        components: this.autoTrader?.getSystemHealth() || {}
+        components: this.isDemoMode 
+          ? { mode: 'demo', demoProvider: this.demoProvider?.isHealthy() || false }
+          : (this.autoTrader?.getSystemHealth() || {})
       };
       res.json(health);
     });
@@ -128,7 +135,9 @@ export class APIServer {
     // API Routes
     this.app.get('/api/opportunities', (req, res) => {
       try {
-        const opportunities = this.opportunityFinder?.getOpportunities() || [];
+        const opportunities = this.isDemoMode 
+          ? this.demoProvider.getOpportunities()
+          : (this.opportunityFinder?.getOpportunities() || []);
         res.json({ opportunities });
       } catch (error) {
         logger.error('Error fetching opportunities:', error);
@@ -138,7 +147,9 @@ export class APIServer {
 
     this.app.get('/api/prices', (req, res) => {
       try {
-        const prices = this.priceMonitor?.getAllPrices() || new Map();
+        const prices = this.isDemoMode
+          ? this.demoProvider.getPrices()
+          : (this.priceMonitor?.getAllPrices() || new Map());
         const priceArray = Array.from(prices.entries()).map(([, data]) => data);
         res.json({ prices: priceArray });
       } catch (error) {
@@ -149,16 +160,40 @@ export class APIServer {
 
     this.app.get('/api/stats', async (req, res) => {
       try {
-        const stats = this.autoTrader?.getStats() || {};
-        const riskStats = this.autoTrader?.getRiskStats() || {};
-        const balance = await this.flashLoanExecutor?.getWalletBalance() || '0';
-        
-        res.json({
-          trading: stats,
-          risk: riskStats,
-          walletBalance: balance,
-          priceMonitor: this.priceMonitor?.getStats() || {}
-        });
+        if (this.isDemoMode) {
+          // Demo mode stats
+          res.json({
+            trading: {
+              totalTrades: Math.floor(Math.random() * 50) + 10,
+              successfulTrades: Math.floor(Math.random() * 40) + 8,
+              failedTrades: Math.floor(Math.random() * 10) + 2,
+              totalProfit: (Math.random() * 5 + 1).toFixed(4),
+              averageProfit: (Math.random() * 0.5 + 0.1).toFixed(4),
+              uptime: Date.now() - (Math.random() * 86400000) // Random uptime up to 24h
+            },
+            risk: {
+              dailyTradeCount: Math.floor(Math.random() * 20) + 5,
+              dailyProfit: Math.random() * 2 + 0.5,
+              consecutiveFailures: 0
+            },
+            walletBalance: (Math.random() * 10 + 5).toFixed(4),
+            priceMonitor: this.demoProvider.getStats(),
+            mode: 'demo'
+          });
+        } else {
+          // Live mode stats
+          const stats = this.autoTrader?.getStats() || {};
+          const riskStats = this.autoTrader?.getRiskStats() || {};
+          const balance = await this.flashLoanExecutor?.getWalletBalance() || '0';
+          
+          res.json({
+            trading: stats,
+            risk: riskStats,
+            walletBalance: balance,
+            priceMonitor: this.priceMonitor?.getStats() || {},
+            mode: 'live'
+          });
+        }
       } catch (error) {
         logger.error('Error fetching stats:', error);
         res.status(500).json({ error: 'Internal server error' });
@@ -168,12 +203,17 @@ export class APIServer {
     // Control endpoints
     this.app.post('/api/start', async (req, res) => {
       try {
-        if (!this.autoTrader) {
-          return res.status(400).json({ error: 'Auto trader not initialized' });
+        if (this.isDemoMode) {
+          logger.info('Demo mode: Simulating trading start');
+          res.json({ message: 'Demo trading simulation started' });
+        } else {
+          if (!this.autoTrader) {
+            return res.status(400).json({ error: 'Auto trader not initialized' });
+          }
+          
+          await this.autoTrader.start();
+          res.json({ message: 'Auto trader started' });
         }
-        
-        await this.autoTrader.start();
-        res.json({ message: 'Auto trader started' });
       } catch (error) {
         logger.error('Error starting auto trader:', error);
         res.status(500).json({ error: 'Failed to start auto trader' });
@@ -182,12 +222,17 @@ export class APIServer {
 
     this.app.post('/api/stop', async (req, res) => {
       try {
-        if (!this.autoTrader) {
-          return res.status(400).json({ error: 'Auto trader not initialized' });
+        if (this.isDemoMode) {
+          logger.info('Demo mode: Simulating trading stop');
+          res.json({ message: 'Demo trading simulation stopped' });
+        } else {
+          if (!this.autoTrader) {
+            return res.status(400).json({ error: 'Auto trader not initialized' });
+          }
+          
+          await this.autoTrader.stop();
+          res.json({ message: 'Auto trader stopped' });
         }
-        
-        await this.autoTrader.stop();
-        res.json({ message: 'Auto trader stopped' });
       } catch (error) {
         logger.error('Error stopping auto trader:', error);
         res.status(500).json({ error: 'Failed to stop auto trader' });
@@ -196,12 +241,17 @@ export class APIServer {
 
     this.app.post('/api/pause', (req, res) => {
       try {
-        if (!this.autoTrader) {
-          return res.status(400).json({ error: 'Auto trader not initialized' });
+        if (this.isDemoMode) {
+          logger.info('Demo mode: Simulating trading pause');
+          res.json({ message: 'Demo trading simulation paused' });
+        } else {
+          if (!this.autoTrader) {
+            return res.status(400).json({ error: 'Auto trader not initialized' });
+          }
+          
+          this.autoTrader.pauseTrading();
+          res.json({ message: 'Trading paused' });
         }
-        
-        this.autoTrader.pauseTrading();
-        res.json({ message: 'Trading paused' });
       } catch (error) {
         logger.error('Error pausing trading:', error);
         res.status(500).json({ error: 'Failed to pause trading' });
@@ -210,12 +260,17 @@ export class APIServer {
 
     this.app.post('/api/resume', (req, res) => {
       try {
-        if (!this.autoTrader) {
-          return res.status(400).json({ error: 'Auto trader not initialized' });
+        if (this.isDemoMode) {
+          logger.info('Demo mode: Simulating trading resume');
+          res.json({ message: 'Demo trading simulation resumed' });
+        } else {
+          if (!this.autoTrader) {
+            return res.status(400).json({ error: 'Auto trader not initialized' });
+          }
+          
+          this.autoTrader.resumeTrading();
+          res.json({ message: 'Trading resumed' });
         }
-        
-        this.autoTrader.resumeTrading();
-        res.json({ message: 'Trading resumed' });
       } catch (error) {
         logger.error('Error resuming trading:', error);
         res.status(500).json({ error: 'Failed to resume trading' });
@@ -224,12 +279,17 @@ export class APIServer {
 
     this.app.post('/api/emergency-stop', async (req, res) => {
       try {
-        if (!this.autoTrader) {
-          return res.status(400).json({ error: 'Auto trader not initialized' });
+        if (this.isDemoMode) {
+          logger.warn('Demo mode: Simulating emergency stop');
+          res.json({ message: 'Demo emergency stop simulation executed' });
+        } else {
+          if (!this.autoTrader) {
+            return res.status(400).json({ error: 'Auto trader not initialized' });
+          }
+          
+          await this.autoTrader.emergencyStop();
+          res.json({ message: 'Emergency stop executed' });
         }
-        
-        await this.autoTrader.emergencyStop();
-        res.json({ message: 'Emergency stop executed' });
       } catch (error) {
         logger.error('Error executing emergency stop:', error);
         res.status(500).json({ error: 'Failed to execute emergency stop' });

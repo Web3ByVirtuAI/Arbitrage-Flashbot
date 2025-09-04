@@ -17,6 +17,7 @@
                     <h1 class="text-3xl font-bold text-blue-400">
                         <i class="fas fa-bolt mr-2"></i>
                         Flash Loan Arbitrage Bot
+                        <span id="demo-badge" class="ml-3 text-sm bg-yellow-500 text-black px-2 py-1 rounded-full font-medium">DEMO MODE</span>
                     </h1>
                     <div id="status-indicator" class="flex items-center space-x-2">
                         <div class="h-3 w-3 bg-yellow-500 rounded-full animate-pulse"></div>
@@ -267,6 +268,16 @@
 
         function updateStats(stats) {
             const trading = stats.trading || {};
+            
+            // Update demo mode indicator
+            const demoBadge = document.getElementById('demo-badge');
+            if (stats.mode === 'demo') {
+                demoBadge.textContent = 'DEMO MODE';
+                demoBadge.className = 'ml-3 text-sm bg-yellow-500 text-black px-2 py-1 rounded-full font-medium';
+            } else {
+                demoBadge.textContent = 'LIVE MODE';
+                demoBadge.className = 'ml-3 text-sm bg-red-500 text-white px-2 py-1 rounded-full font-medium animate-pulse';
+            }
             
             document.getElementById('total-profit').textContent = 
                 '$' + parseFloat(trading.totalProfit || '0').toFixed(4);
